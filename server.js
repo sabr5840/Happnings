@@ -71,3 +71,6 @@ app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
 
 const categoryRoutes = require('./routes/categoryRoutes');
 app.use('/api/categories', categoryRoutes);
+
+const notificationRoutes = require('./routes/notificationRoutes');
+app.use('/api/notifications', notificationRoutes);
