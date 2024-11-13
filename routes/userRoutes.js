@@ -1,23 +1,34 @@
 // routes/userRoutes.js
 
 const express = require('express');
+const {
+  registerUser,
+  getUsers,
+  getUserById,
+  updateUser,
+  deleteUser,
+  loginUser,
+  logoutUser
+} = require('../controllers/userController');
+const authMiddleware = require('../middleware/authMiddleware');
 
-const { registerUser, getUsers, getUserById, updateUser, deleteUser } = require('../controllers/userController');
 const router = express.Router();
 
-// Create a user
+// Public routes
 router.post('/register', registerUser);
+router.post('/login', loginUser);
+router.post('/logout', logoutUser);
 
-// Get all users 
-router.get('/', getUsers);
+// Protected routes
+router.get('/protected-route', authMiddleware, (req, res) => {
+  res.json({ message: 'This is a protected route' });
+});
 
-// Get all a user based on a ID
-router.get('/:id', getUserById);
+router.get('/', authMiddleware, getUsers);
+router.get('/:id', authMiddleware, getUserById);
+router.put('/:id', authMiddleware, updateUser);
+router.delete('/:id', authMiddleware, deleteUser);
 
-// Update a user
-router.put('/:id', updateUser);
 
-// Delete a user 
-router.delete('/:id', deleteUser);
 
 module.exports = router;

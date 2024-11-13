@@ -1,5 +1,3 @@
-//Handles the connection to your MySQL database using the values ​​from the .env file.
-
 const mysql = require('mysql2');
 const dotenv = require('dotenv');
 dotenv.config();
@@ -12,4 +10,3 @@ const pool = mysql.createPool({
 });
 
 module.exports = pool.promise();
-
