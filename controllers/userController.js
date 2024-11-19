@@ -17,10 +17,13 @@ exports.registerUser = async (req, res) => {
     // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Insert user into the database
+    // Generate a placeholder FCM token for the new user
+    const placeholderToken = `fcm_token_${Date.now()}`;
+
+    // Insert user into the database including the placeholder FCM token
     const [result] = await db.query(
-      'INSERT INTO User (Name, Email, Password) VALUES (?, ?, ?)',
-      [name, email, hashedPassword]
+      'INSERT INTO User (Name, Email, Password, FCM_Token) VALUES (?, ?, ?, ?)',
+      [name, email, hashedPassword, placeholderToken]
     );
 
     res.status(201).json({ message: 'User registered successfully', userId: result.insertId });
@@ -31,40 +34,36 @@ exports.registerUser = async (req, res) => {
 
 // Login a user
 exports.loginUser = async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, token } = req.body; // Assume token is sent from the client
 
   try {
     const [user] = await db.query('SELECT * FROM User WHERE Email = ?', [email]);
-
     if (user.length === 0) {
       return res.status(404).json({ message: 'User not found' });
     }
 
     const validPassword = await bcrypt.compare(password, user[0].Password);
-
     if (!validPassword) {
       return res.status(401).json({ message: 'Incorrect password' });
     }
 
+    // Update token in the database
+    await db.query('UPDATE User SET FCM_Token = ? WHERE User_ID = ?', [token, user[0].User_ID]);
+
     // Save user's ID in the session
     req.session.userId = user[0].User_ID;
-
-    // Explicitly save the session before sending the response
     req.session.save((err) => {
       if (err) {
-        console.error('Session save error:', err);
         return res.status(500).json({ message: 'Session save error' });
       }
 
-      console.log('Login route session ID:', req.sessionID);
-      console.log('Login route session data:', req.session);
-
-      res.json({ message: 'Login successful' });
+      res.json({ message: 'Login successful', token: token });
     });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // Log out 
 exports.logoutUser = (req, res) => {
@@ -146,3 +145,4 @@ exports.deleteUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+

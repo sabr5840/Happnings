@@ -1,4 +1,5 @@
 // routes/userRoutes.js
+const db = require('../config/db');
 
 const express = require('express');
 const {
@@ -28,6 +29,19 @@ router.get('/', authMiddleware, getUsers);
 router.get('/:id', authMiddleware, getUserById);
 router.put('/:id', authMiddleware, updateUser);
 router.delete('/:id', authMiddleware, deleteUser);
+
+
+// Example endpoint to save FCM token
+router.post('/save-token', authMiddleware, async (req, res) => {
+  const { userId, token } = req.body;
+  try {
+    await db.query('UPDATE User SET FCM_Token = ? WHERE User_ID = ?', [token, userId]);
+    res.send({ message: "Token saved successfully" });
+  } catch (error) {
+    res.status(500).send({ message: "Failed to save token", error: error.message });
+  }
+});
+
 
 
 

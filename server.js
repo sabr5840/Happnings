@@ -28,7 +28,7 @@ app.use(
 // Session store configuration using MySQL
 const sessionStore = new MySQLStore({
   host: process.env.DB_HOST,
-  port: 3306, // Update if your MySQL runs on a different port
+  port: 3306, 
   user: process.env.DB_USER,
   password: process.env.DB_PASSWORD,
   database: process.env.DB_NAME
@@ -51,11 +51,10 @@ app.use(
   })
 );
 
-
 // Use user routes after session middleware
 app.use('/api/users', userRoutes);
 
-// Test the database connection (optional)
+// Test the database connection
 app.get('/api/db-test', async (req, res) => {
   try {
     const [rows] = await db.query('SELECT 1'); // Simple query to test the database connection
