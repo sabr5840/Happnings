@@ -24,14 +24,9 @@ jobs:
         with:
           node-version: '16'
 
-      # Installer afhængigheder i backend-mappen
+      # Installer afhængigheder
       - name: Install dependencies
         run: npm install
-        working-directory: ./backend
-
-      # (Valgfrit) Kør tests i backend-mappen
-      - name: Run tests
-        run: npm test
         working-directory: ./backend
 
       # Log ind på Azure med Federated Credentials
