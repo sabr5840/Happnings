@@ -1,5 +1,5 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
+# Dokumentation for Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
+# Flere GitHub Actions for Azure: https://github.com/Azure/actions
 
 name: Build and deploy Node.js app to Azure Web App - Happnings-backend
 
@@ -51,6 +51,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
+          path: ./
 
       - name: List files after downloading build artifacts
         run: ls -R
