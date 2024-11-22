@@ -1,6 +1,3 @@
-# Docs for the Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# More GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy Node.js app to Azure Web App - Happnings-backend
 
 on:
@@ -25,13 +22,15 @@ jobs:
         run: |
           cd backend
           npm install
+          # Hvis der er en "build"-script i package.json, kør den:
           npm run build --if-present
+          cd ..
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: ./backend
+          path: backend/ # Ændret for at sikre korrekt sti
 
   deploy:
     runs-on: ubuntu-latest
@@ -40,8 +39,8 @@ jobs:
       name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     permissions:
-      id-token: write  # Required for OIDC authentication
-      contents: read   # Required for accessing repository files
+      id-token: write  # Krævet for OIDC
+      contents: read   # Til GitHub-artefakter
 
     steps:
       - name: Download build artifacts
@@ -61,4 +60,4 @@ jobs:
         with:
           app-name: 'Happnings-backend'
           slot-name: 'Production'
-          package: ./backend
+          package: backend/ # Ændret til korrekt sti
