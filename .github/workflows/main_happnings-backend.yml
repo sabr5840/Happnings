@@ -61,3 +61,5 @@ jobs:
           app-name: 'Happnings-backend'
           slot-name: 'Production'
           package: ./backend
+
+          
