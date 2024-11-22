@@ -1,6 +1,3 @@
-# Dokumentation for Azure Web Apps Deploy action: https://github.com/Azure/webapps-deploy
-# Flere GitHub Actions for Azure: https://github.com/Azure/actions
-
 name: Build and deploy Node.js app to Azure Web App - Happnings-backend
 
 on:
@@ -26,15 +23,20 @@ jobs:
           cd backend
           npm install
           npm run build --if-present
+          cd ..
 
       - name: List files in backend before upload
         run: ls -R backend
+
+      - name: Create a zip of the backend directory
+        run: |
+          zip -r backend.zip backend
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: ./backend
+          path: backend.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -43,8 +45,8 @@ jobs:
       name: 'Production'
       url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
     permissions:
-      id-token: write  # Required for OIDC authentication
-      contents: read   # Required for accessing repository files
+      id-token: write
+      contents: read
 
     steps:
       - name: Download build artifacts
@@ -54,7 +56,9 @@ jobs:
           path: ./
 
       - name: List files after downloading build artifacts
-        run: ls -R
+        run: |
+          pwd
+          ls -R
 
       - name: Login to Azure
         uses: azure/login@v2
@@ -68,4 +72,4 @@ jobs:
         with:
           app-name: 'Happnings-backend'
           slot-name: 'Production'
-          package: ./backend
+          package: backend.zip
