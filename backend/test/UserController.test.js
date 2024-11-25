@@ -1,5 +1,5 @@
 
-const userController = require('/Users/sabrinahammerichebbesen/Desktop/Happnings/backend/controllers/UserController.js');
+const userController = require('../controllers/UserController');
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 
