@@ -1,5 +1,5 @@
 
-const userController = require('../controllers/UserController');
+const userController = require('../controllers/userController.js');
 const db = require('../config/db');
 const bcrypt = require('bcryptjs');
 
