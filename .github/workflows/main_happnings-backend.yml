@@ -1,4 +1,4 @@
-name: Build, test, and deploy Node.js app to Azure Web App - Happnings-backend
+name: Build and deploy Node.js app to Azure Web App - Happnings-backend
 
 on:
   push:
@@ -14,23 +14,18 @@ jobs:
       # Check out the code
       - uses: actions/checkout@v4
 
-      # Set up Node.js environment and cache dependencies
+      # Set up Node.js
       - name: Set up Node.js version
         uses: actions/setup-node@v3
         with:
           node-version: '20.x'
           cache: 'npm'
 
-      # Install dependencies (including devDependencies)
+      # Install dependencies
       - name: Install dependencies
         run: |
           cd backend
-          npm install --include=dev
-
-      # Install Babel and Jest globally to avoid preset/env errors
-      - name: Install Babel and Jest globally
-        run: |
-          npm install -g jest @babel/core @babel/preset-env
+          npm ci
 
       # Run tests
       - name: Run tests
@@ -38,18 +33,18 @@ jobs:
           cd backend
           npm test
 
-      # Build application if needed
+      # Build application
       - name: Build application
         run: |
           cd backend
           npm run build --if-present
           cd ..
 
-      # List files to ensure the correct files are ready for deployment
+      # List files
       - name: List files in backend before upload
         run: ls -R backend
 
-      # Create a zip file of the backend directory for deployment
+      # Create a zip file of the backend directory
       - name: Create a zip of the backend directory
         run: |
           zip -r backend.zip backend
@@ -77,7 +72,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-          path: ./
+          path: ./ 
 
       # List files to confirm artifacts are downloaded correctly
       - name: List files after downloading build artifacts
