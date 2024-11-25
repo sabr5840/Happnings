@@ -14,13 +14,25 @@ jobs:
       # Check out the code
       - uses: actions/checkout@v4
 
+      # Debug the file structure
+      - name: List all files
+        run: |
+          echo "Listing all files in the repository..."
+          ls -R
+
       # Set up Node.js environment and cache dependencies
       - name: Set up Node.js version
         uses: actions/setup-node@v3
         with:
           node-version: '20.x'
           cache: 'npm'
-          cache-dependency-path: backend/package-lock.json # Brug backend's lock-fil
+
+      # Debug Node.js environment
+      - name: Print Node.js version
+        run: node -v
+
+      - name: Print npm version
+        run: npm -v
 
       # Install dependencies (including devDependencies)
       - name: Install dependencies
@@ -28,11 +40,11 @@ jobs:
           cd backend
           npm install --include=dev
 
-      # Debug package-lock.json location
-      - name: Debug package-lock.json
+      # Debug file structure in backend
+      - name: List all files in backend
         run: |
-          echo "Checking package-lock.json in backend..."
-          ls backend/package-lock.json
+          cd backend
+          ls -R
 
       # Run tests
       - name: Run tests
