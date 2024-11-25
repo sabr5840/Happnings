@@ -19,22 +19,16 @@ jobs:
           node-version: '20.x'
 
       - name: Install dependencies
-        run: |
-          cd backend
-          npm install
+        working-directory: ./backend
+        run: npm install
 
       - name: Run tests
-        run: |
-          cd backend
-          npm test
+        working-directory: ./backend
+        run: npm test
 
       - name: Build application
-        run: |
-          cd backend
-          npm run build --if-present
-
-      - name: List files in backend before upload
-        run: ls -R backend
+        working-directory: ./backend
+        run: npm run build --if-present
 
       - name: Create a zip of the backend directory
         run: |
@@ -63,11 +57,6 @@ jobs:
           name: build-artifacts
           path: ./
 
-      - name: List files after downloading build artifacts
-        run: |
-          pwd
-          ls -R
-
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -81,3 +70,8 @@ jobs:
           app-name: 'Happnings-backend'
           slot-name: 'Production'
           package: backend.zip
+
+      - name: Install Node.js dependencies on Azure
+        run: |
+          cd /home/site/wwwroot
+          npm install --production
