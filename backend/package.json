@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"No tests specified, skipping...\" && exit 0"
+    "test": "jest"
+  },
+  "babel": {
+  "presets": ["@babel/preset-env"]
   },
   "keywords": [],
   "author": "",

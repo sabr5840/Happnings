@@ -31,20 +31,23 @@ exports.getNotifications = async (req, res) => {
 
 // Delete a notification
 exports.deleteNotification = async (req, res) => {
-    const userId = req.session.userId;
-    const { id } = req.params;
-  
-    try {
-      const [result] = await db.query('DELETE FROM Notification WHERE Notification_ID = ? AND User_ID = ?', [id, userId]);
-      
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ message: 'Notification not found' });
-      }
-  
-      res.json({ message: 'Notification deleted' });
-    } catch (error) {
-      res.status(500).json({ error: error.message });
+  const userId = req.session.userId;
+  const { id } = req.params;
+
+  try {
+    const [result] = await db.query(
+      'DELETE FROM Notification WHERE Notification_ID = ? AND User_ID = ?',
+      [id, userId]
+    );
+
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Notification not found' });
     }
+
+    res.json({ message: 'Notification deleted' });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
 };
   
 // Update a notifications
@@ -132,7 +135,6 @@ function sendPushNotification(token, message) {
       console.log('Error sending message:', error);
     });
 }
-
 
 // Helper function to calculate the reminder time
 function calculateScheduleTime(eventStartTime, reminderTime) {
@@ -238,6 +240,4 @@ async function handleNotificationScheduling(userId, eventId, reminderId, connect
   scheduleNotification(userToken, message, scheduleTime);
   return scheduleTime;
 }
-
-
 
