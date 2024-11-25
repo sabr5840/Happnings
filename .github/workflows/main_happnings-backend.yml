@@ -20,10 +20,7 @@ jobs:
         with:
           node-version: '20.x'
           cache: 'npm'
-
-      # Clear npm cache to avoid issues
-      - name: Clear npm cache
-        run: npm cache clean --force
+          cache-dependency-path: backend/package-lock.json # Brug backend's lock-fil
 
       # Install dependencies (including devDependencies)
       - name: Install dependencies
@@ -31,12 +28,11 @@ jobs:
           cd backend
           npm install --include=dev
 
-      # Debug controllers folder
-      - name: Debug controllers folder
+      # Debug package-lock.json location
+      - name: Debug package-lock.json
         run: |
-          echo "Checking controllers folder..."
-          cd backend/controllers
-          ls -l
+          echo "Checking package-lock.json in backend..."
+          ls backend/package-lock.json
 
       # Run tests
       - name: Run tests
