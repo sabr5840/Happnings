@@ -16,7 +16,19 @@ jobs:
 
       # Debugging trin for at sikre korrekt filstruktur
       - name: List all files in the repository
-        run: ls -la
+        run: |
+          echo "Root folder files:"
+          ls -la
+          echo "Backend folder files:"
+          ls -la backend
+
+      # Check for package-lock.json
+      - name: Validate package-lock.json presence
+        run: |
+          if [ ! -f backend/package-lock.json ]; then
+            echo "Error: package-lock.json not found in backend folder";
+            exit 1;
+          fi
 
       # Set up Node.js environment
       - name: Set up Node.js version
@@ -25,21 +37,11 @@ jobs:
           node-version: '20.x'
           cache: 'npm'
 
-      # Clear npm cache (hvis nødvendigt)
-      - name: Clear npm cache
-        run: npm cache clean --force
-
       # Install dependencies
       - name: Install dependencies
         run: |
           cd backend
           npm install
-
-      # Debugging trin for at liste filer i backend
-      - name: List files in backend directory
-        run: |
-          cd backend
-          ls -la
 
       # Run tests
       - name: Run tests
