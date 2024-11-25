@@ -5,22 +5,21 @@ const bcrypt = require('bcryptjs');
 
 // Register a new user
 exports.registerUser = async (req, res) => {
+  console.log('Request Body:', req.body); // Log input
   const { name, email, password } = req.body;
 
   try {
-    // Check if the user already exists
+    if (!name || !email || !password) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
     const [existingUser] = await db.query('SELECT * FROM User WHERE Email = ?', [email]);
     if (existingUser.length > 0) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Generate a placeholder FCM token for the new user
     const placeholderToken = `fcm_token_${Date.now()}`;
-
-    // Insert user into the database including the placeholder FCM token
     const [result] = await db.query(
       'INSERT INTO User (Name, Email, Password, FCM_Token) VALUES (?, ?, ?, ?)',
       [name, email, hashedPassword, placeholderToken]
@@ -31,6 +30,7 @@ exports.registerUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
 
 // Login a user
 exports.loginUser = async (req, res) => {

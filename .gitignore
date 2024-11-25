@@ -3,3 +3,9 @@ config/happnings-d76a6-firebase-adminsdk-rb4zp-18a24b2a86 2.json
 
 # Ignore node_modules
 node_modules/
+
+# Ignore Azure CA certificate
+backend/certs/azure-ca.pem
+
+# Ignore environment file
+backend/.env
