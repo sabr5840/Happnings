@@ -7,60 +7,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  test-and-build:
+  build-and-test:
     runs-on: ubuntu-latest
 
     steps:
-      # Check out the code
       - uses: actions/checkout@v4
 
-      # Debugging trin for at sikre korrekt filstruktur
-      - name: List all files in the repository
-        run: |
-          echo "Root folder files:"
-          ls -la
-          echo "Backend folder files:"
-          ls -la backend
-
-      # Check for package-lock.json
-      - name: Validate package-lock.json presence
-        run: |
-          if [ ! -f backend/package-lock.json ]; then
-            echo "Error: package-lock.json not found in backend folder";
-            exit 1;
-          fi
-
-      # Set up Node.js environment
       - name: Set up Node.js version
         uses: actions/setup-node@v3
         with:
           node-version: '20.x'
-          cache: 'npm'
 
-      # Install dependencies
       - name: Install dependencies
         run: |
           cd backend
           npm install
 
-      # Run tests
       - name: Run tests
         run: |
           cd backend
           npm test
 
-      # Build application
       - name: Build application
         run: |
           cd backend
           npm run build --if-present
 
-      # Create zip file for deployment
+      - name: List files in backend before upload
+        run: ls -R backend
+
       - name: Create a zip of the backend directory
         run: |
           zip -r backend.zip backend
 
-      # Upload build artifacts
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -69,22 +48,26 @@ jobs:
 
   deploy:
     runs-on: ubuntu-latest
-    needs: test-and-build
+    needs: build-and-test
+    environment:
+      name: 'Production'
+      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
+    permissions:
+      id-token: write
+      contents: read
 
     steps:
-      # Download build artifacts
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: ./
 
-      # List downloaded files
-      - name: List downloaded files
+      - name: List files after downloading build artifacts
         run: |
+          pwd
           ls -R
 
-      # Login to Azure
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -92,9 +75,9 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
-      # Deploy to Azure Web App
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
           app-name: 'Happnings-backend'
+          slot-name: 'Production'
           package: backend.zip
