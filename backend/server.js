@@ -76,9 +76,10 @@ app.get('/api/db-test', async (req, res) => {
 
 // Brug dine routes efter session middleware
 app.use('/api/users', userRoutes);
-app.use('/api/categories', categoryRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/events', eventRoutes);
+app.use('/api', categoryRoutes);
+
 
 // Start serveren
 const PORT = process.env.PORT || 3000;
