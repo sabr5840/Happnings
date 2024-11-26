@@ -87,18 +87,8 @@ jobs:
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
+        id: deploy-to-webapp
         with:
           app-name: 'Happnings-backend'
           slot-name: 'Production'
           package: backend.zip
-
-      - name: List directories on Azure
-        run: ls -R /home/site/
-
-      - name: Unzip deployment package (for debugging)
-        run: |
-          unzip backend.zip -d /home/site/wwwroot
-
-      - name: List files in wwwroot after unzipping
-        run: |
-          ls -R /home/site/wwwroot
