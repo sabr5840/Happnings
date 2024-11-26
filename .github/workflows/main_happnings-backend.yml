@@ -11,29 +11,55 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      # Tjek kode ud
       - uses: actions/checkout@v4
 
+      # Sæt Node.js version op
       - name: Set up Node.js version
         uses: actions/setup-node@v3
         with:
           node-version: '20.x'
 
+      # Cache Node.js afhængigheder for hurtigere bygning
+      - name: Cache Node.js modules
+        uses: actions/cache@v4
+        with:
+          path: backend/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('**/backend/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
+
+      # Installer afhængigheder
       - name: Install dependencies
         working-directory: ./backend
         run: npm install
 
+      # Kør test
       - name: Run tests
         working-directory: ./backend
         run: npm test
 
+      # Byg applikationen
       - name: Build application
         working-directory: ./backend
         run: npm run build --if-present
 
+      # Liste filer for debugging
+      - name: List files in backend
+        run: |
+          cd backend
+          ls -R
+
+      # Opret en zip af backend-mappen uden unødvendige filer
       - name: Create a zip of the backend directory
         run: |
-          zip -r backend.zip backend
+          zip -r backend.zip backend -x "**/node_modules/**" "**/test/**" "**/*.log" "**/.env"
 
+      # Tjek størrelsen af zip-filen
+      - name: Check backend.zip size
+        run: du -h backend.zip
+
+      # Upload artefakter
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -51,12 +77,20 @@ jobs:
       contents: read
 
     steps:
+      # Download artefakter
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
           path: ./
 
+      # Liste filer efter download for debugging
+      - name: List files after downloading build artifacts
+        run: |
+          pwd
+          ls -R
+
+      # Log ind på Azure
       - name: Login to Azure
         uses: azure/login@v2
         with:
@@ -64,6 +98,7 @@ jobs:
           tenant-id: ${{ secrets.AZURE_TENANT_ID }}
           subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
+      # Deploy til Azure Web App
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
         with:
@@ -71,7 +106,14 @@ jobs:
           slot-name: 'Production'
           package: backend.zip
 
+      # Installer afhængigheder på Azure
       - name: Install Node.js dependencies on Azure
         run: |
           cd /home/site/wwwroot
           npm install --production
+
+      # Liste filer på Azure for debugging
+      - name: List files on Azure after deployment
+        run: |
+          cd /home/site/wwwroot
+          ls -R
