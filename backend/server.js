@@ -1,5 +1,5 @@
 const fs = require('fs');
-const mysql = require('mysql2/promise'); // Brug mysql2/promise for bedre integration med async/await
+const mysql = require('mysql2/promise');
 const express = require('express');
 const dotenv = require('dotenv');
 const session = require('express-session');
@@ -8,6 +8,7 @@ const userRoutes = require('./routes/userRoutes');
 const categoryRoutes = require('./routes/categoryRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const eventRoutes = require('./routes/eventRoutes');
+const favoriteRoutes = require('./routes/favoriteRoutes'); 
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
 
@@ -79,8 +80,15 @@ app.use('/api/users', userRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/events', eventRoutes);
 app.use('/api', categoryRoutes);
-
+app.use('/api', favoriteRoutes); 
 
 // Start serveren
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+
+
+
+
+
+
