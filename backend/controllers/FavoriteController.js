@@ -6,80 +6,55 @@ exports.addToFavorite = async (req, res) => {
   const userId = req.session.userId;
   const { eventId } = req.body;
 
+  if (!eventId) {
+    console.log("No event ID provided");
+    return res.status(400).json({ message: 'Event ID is required' });
+  }
+
   try {
-    if (!eventId) {
-      return res.status(400).json({ message: 'Event ID is required' });
-    }
+    const apiUrl = `https://app.ticketmaster.com/discovery/v2/events/${eventId}.json?apikey=${process.env.TICKETMASTER_API_KEY}`;
+    const response = await axios.get(apiUrl);
 
-    // Fetch event details from Ticketmaster API
-    const apiKey = process.env.TICKETMASTER_API_KEY;
-    const apiUrl = `https://app.ticketmaster.com/discovery/v2/events/${eventId}.json`;
-
-    const response = await axios.get(apiUrl, { params: { apikey: apiKey } });
-
-    // Extract relevant event details
-    const event = response.data;
-    if (!event) {
+    const event = response?.data;
+    if (!event || !event.name || !event.dates?.start?.localDate) {
+      console.log("Invalid event data from API");
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    // Handle imageUrl, imageWidth, and imageHeight (fall back to default values if not available)
-    const imageUrl = event.images && event.images.length > 0 ? event.images[0].url : 'backend/default/no_images.jpg';
-    const imageWidth = event.images && event.images.length > 0 ? event.images[0].width : 640;  // Default width
-    const imageHeight = event.images && event.images.length > 0 ? event.images[0].height : 360; // Default height
-
-    // Extract other event details
-    const venue = event._embedded?.venues ? event._embedded.venues[0].name : 'N/A';
-    const venueAddress = event._embedded?.venues ? JSON.stringify(event._embedded.venues[0].address) : 'N/A';
-
-    const eventDetails = {
-      eventId: event.id,
-      title: event.name,
-      date: event.dates.start.localDate,
-      time: event.dates.start.localTime,
-      priceRange: event.priceRanges ? event.priceRanges[0].min : 'N/A',
-      imageUrl: imageUrl,
-      imageWidth: imageWidth,
-      imageHeight: imageHeight,
-      category: event.classifications[0]?.genre.name || 'N/A',
-      venue: venue,
-      venueAddress: venueAddress,
-      eventUrl: event.url,
-    };
-
-    // Check if the event is already in the user's favorites
-    const [existingFavorite] = await db.query(
-      'SELECT * FROM Favorite WHERE User_ID = ? AND eventId = ?',
-      [userId, eventId]
-    );
-
-    if (existingFavorite.length > 0) {
+    const [existingFavorites] = await db.query('SELECT * FROM Favorite WHERE User_ID = ? AND eventId = ?', [userId, eventId]);
+    if (existingFavorites?.length > 0) {
+      console.log("Event is already in favorites");
       return res.status(400).json({ message: 'Event is already in favorite' });
     }
 
-    // Add event to favorite list
     await db.query(
       'INSERT INTO Favorite (User_ID, eventId, Title, Date, Time, PriceRange, imageUrl, imageWidth, imageHeight, Category, Venue, VenueAddress, EventUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       [
         userId,
         eventId,
-        eventDetails.title,
-        eventDetails.date,
-        eventDetails.time,
-        eventDetails.priceRange,
-        eventDetails.imageUrl,
-        eventDetails.imageWidth,
-        eventDetails.imageHeight,
-        eventDetails.category,
-        eventDetails.venue,
-        eventDetails.venueAddress,
-        eventDetails.eventUrl
+        event.name,
+        event.dates.start.localDate,
+        event.dates.start.localTime || null,
+        event.priceRanges?.[0]?.min || null,
+        event.images?.[0]?.url || null,
+        event.images?.[0]?.width || null,
+        event.images?.[0]?.height || null,
+        event.classifications?.[0]?.genre?.name || null,
+        event._embedded?.venues?.[0]?.name || null,
+        JSON.stringify(event._embedded?.venues?.[0]?.address) || null,
+        event.url || null,
       ]
     );
 
+    console.log("Event added to favorites");
     res.status(201).json({ message: 'Event added to favorite' });
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    if (error.response?.status === 404) {
+      console.error("Event not found in API:", error.message);
+      return res.status(404).json({ message: 'Event not found' });
+    }
+    console.error("Error in addToFavorite:", error.message);
+    res.status(500).json({ error: 'Internal Server Error' });
   }
 };
 
@@ -100,7 +75,6 @@ exports.getFavorite = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
 
 // Remove an event from favorite
 exports.removeFromFavorite = async (req, res) => {

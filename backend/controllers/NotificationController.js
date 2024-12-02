@@ -1,3 +1,5 @@
+// controllers/NotificationController.js
+
 const db = require('../config/db');
 const cron = require('node-cron');
 const moment = require('moment');
@@ -5,10 +7,10 @@ const admin = require('../config/firebaseAdmin');
 const axios = require('axios');
 
 const REMINDER_TYPES = {
-  1: { label: '1 hour before', duration: { hours: 1 } },
-  2: { label: '1 day before', duration: { days: 1 } },
-  3: { label: '2 days before', duration: { days: 2 } },
-  4: { label: '1 week before', duration: { days: 7 } }
+  1: { label: '1 time før', duration: { hours: 1 } },
+  2: { label: '1 dag før', duration: { days: 1 } },
+  3: { label: '2 dage før', duration: { days: 2 } },
+  4: { label: '1 uge før', duration: { days: 7 } }
 };
 
 // Get all notifications for a user
@@ -94,31 +96,37 @@ exports.updateNotification = async (req, res) => {
 };
 
 // Schedule a notification
-function scheduleNotification(token, message, scheduleTime, notificationId) {
+function scheduleNotification(token, eventDetails, reminderId) {
+  const reminderType = REMINDER_TYPES[Number(reminderId)]; // Ensure reminderId is a number
+  if (!reminderType) {
+    console.error(`Invalid reminder ID: ${reminderId}`);
+    return;
+  }
+
+  const reminderTimeLabel = reminderType.label;
+  const scheduleTime = calculateScheduleTime(eventDetails.dateTime, reminderType.duration);
+
+  const message = `Der er ikke mindre end ${reminderTimeLabel} til ${eventDetails.title} starter - ${eventDetails.date} kl. ${eventDetails.time}.`;
+
+  const payload = {
+    notification: {
+      title: `Påmindelse for ${eventDetails.title}`,
+      body: message,
+    },
+    token: token
+  };
+
   const delay = new Date(scheduleTime) - new Date();
-
-  // Log current time and scheduled time to debug
-  console.log('Current Time:', new Date());
-  console.log('Schedule Time:', new Date(scheduleTime));
-
   if (delay < 0) {
     console.log('Cannot schedule a notification in the past.');
     return;
   }
 
-  console.log(`Notification scheduled to be sent in ${Math.round(delay / 1000)} seconds.`);
-  console.log(`Scheduled Time: ${scheduleTime}`);
-
-  setTimeout(async () => {
-    sendPushNotification(token, message);
-
-    // Delete the notification from the database after sending
-    try {
-      await db.query('DELETE FROM Notification WHERE Notification_ID = ?', [notificationId]);
-      console.log(`Notification with ID ${notificationId} deleted from the database.`);
-    } catch (error) {
-      console.error('Failed to delete notification from the database:', error.message);
-    }
+  setTimeout(() => {
+    admin.messaging().send(payload)
+      .then(response => console.log('Successfully sent message:', response))
+      .catch(error => console.log('Error sending message:', error));
+    // Include any additional handling such as deleting the notification from the database
   }, delay);
 }
 
@@ -142,9 +150,9 @@ function sendPushNotification(token, message) {
 }
 
 // Helper function to calculate the reminder time
-function calculateScheduleTime(eventStartTime, reminderTime) {
+function calculateScheduleTime(eventStartTime, reminderDuration) {
   const eventTime = moment(eventStartTime);  // Use local time
-  return eventTime.subtract(moment.duration(reminderTime)).toDate();
+  return eventTime.subtract(moment.duration(reminderDuration)).toDate();
 }
 
 // Create a notification and schedule a push notification
@@ -158,8 +166,10 @@ exports.addNotification = async (req, res) => {
       return res.status(400).json({ message: 'Invalid input data: eventId is required' });
     }
 
-    // Determine if `reminderIds` is an array or if a single `reminderId` is provided
-    const reminders = Array.isArray(reminderIds) ? reminderIds : [reminderId];
+    // Ensure `reminders` is an array of numbers
+    const reminders = Array.isArray(reminderIds)
+      ? reminderIds.map(id => Number(id))
+      : [Number(reminderId)];
 
     // Ensure at least one valid reminderId
     if (!reminders.every(id => REMINDER_TYPES[id])) {
@@ -194,19 +204,15 @@ exports.addNotification = async (req, res) => {
 
     // Loop over each reminder and schedule notification
     for (const reminder of reminders) {
-      const reminderDuration = REMINDER_TYPES[reminder].duration;
-      const scheduleTime = calculateScheduleTime(eventStartTime, reminderDuration);
-
       // Insert the notification into the database
       const [result] = await connection.query(
         'INSERT INTO Notification (User_ID, eventId, Reminder_ID, Time_reminder) VALUES (?, ?, ?, ?)',
-        [userId, eventId, reminder, scheduleTime]
+        [userId, eventId, reminder, new Date()] // Adjust Time_reminder as needed
       );
       const notificationId = result.insertId;
 
       // Schedule the notification
-      const message = `Reminder: ${event.name} is happening soon!`;
-      scheduleNotification(userToken, message, scheduleTime, notificationId);
+      scheduleNotification(userToken, event, reminder);
     }
 
     // Commit transaction
@@ -226,19 +232,20 @@ async function getEventFromTicketmaster(eventId) {
     const apiUrl = `https://app.ticketmaster.com/discovery/v2/events/${eventId}.json`;
 
     const response = await axios.get(apiUrl, { params: { apikey: apiKey } });
-
     const eventData = response.data;
 
     const event = {
       id: eventData.id,
-      name: eventData.name,
-      dateTime: eventData.dates.start.dateTime,  // Use ISO 8601 dateTime
-      // Include other event details if needed
+      title: eventData.name,
+      dateTime: eventData.dates.start.dateTime,
+      date: eventData.dates.start.localDate,
+      time: eventData.dates.start.localTime,
+      // other details as needed
     };
 
     return event;
   } catch (error) {
     console.error('Error fetching event from Ticketmaster:', error.response ? error.response.data : error.message);
-    return null;
+    throw error;
   }
 }
