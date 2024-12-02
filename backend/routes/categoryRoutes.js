@@ -1,13 +1,8 @@
 const express = require('express');
-const { getCategories, getFilteredAndSortedEvents } = require('../controllers/CategoryController');
 const router = express.Router();
+const { getCategories } = require('../controllers/CategoryController');
 
-// Route for getting all categories
-router.get('/', getCategories);
-
-// Route for getting events with filtering and sorting
-router.get('/events', getFilteredAndSortedEvents);
-router.get('/filter', getFilteredAndSortedEvents);
-
+// Route to fetch all categories
+router.get('/categories', getCategories);
 
 module.exports = router;

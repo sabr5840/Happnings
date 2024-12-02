@@ -1,20 +1,14 @@
-
+// backend/routes/notificationRoutes.js
 const express = require('express');
-const { addNotification, getNotifications, deleteNotification, updateNotification } = require('../controllers/NotificationController');
-const authMiddleware = require('../middleware/authMiddleware'); 
 const router = express.Router();
+const NotificationController = require('../controllers/NotificationController');
 
-// Create a notifikation
-router.post('/', authMiddleware, addNotification);
+// Define the route for adding a notification
+router.post('/notifications/add', NotificationController.addNotification);
 
-// Get all notifikationer for a user
-router.get('/', authMiddleware, getNotifications);
-
-// Delete a notifikation
-router.delete('/:id', authMiddleware, deleteNotification);
-
-// Update a notification
-router.put('/:id', authMiddleware, updateNotification);
-
+// Other existing routes...
+router.get('/notifications', NotificationController.getNotifications);
+router.delete('/notifications/:id', NotificationController.deleteNotification);
+router.put('/notifications/:id', NotificationController.updateNotification);
 
 module.exports = router;

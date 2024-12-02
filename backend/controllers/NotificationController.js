@@ -1,7 +1,8 @@
 const db = require('../config/db');
 const cron = require('node-cron');
-const moment = require('moment'); 
+const moment = require('moment');
 const admin = require('../config/firebaseAdmin');
+const axios = require('axios');
 
 const REMINDER_TYPES = {
   1: { label: '1 hour before', duration: { hours: 1 } },
@@ -15,16 +16,24 @@ exports.getNotifications = async (req, res) => {
   const userId = req.session.userId;
 
   try {
+    // Fetch notifications from the database
     const [notifications] = await db.query(
-      `SELECT n.*, er.Reminder_Time, e.Title, e.Description
-       FROM Notification n
-       JOIN Event_Reminders er ON n.Reminder_ID = er.Reminder_ID
-       JOIN Event e ON er.Event_ID = e.Event_ID
-       WHERE n.User_ID = ?`,
+      `SELECT n.* FROM Notification n WHERE n.User_ID = ?`,
       [userId]
     );
-    res.json(notifications);
+
+    // For each notification, fetch event details from Ticketmaster API
+    const notificationsWithEventDetails = await Promise.all(notifications.map(async (notification) => {
+      const event = await getEventFromTicketmaster(notification.eventId);
+      return {
+        ...notification,
+        event: event || null,  // Include event details or null if not found
+      };
+    }));
+
+    res.json(notificationsWithEventDetails);
   } catch (error) {
+    console.error('Error fetching notifications:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -34,10 +43,16 @@ exports.deleteNotification = async (req, res) => {
   const userId = req.session.userId;
   const { id } = req.params;
 
+  // Ensure Notification_ID is an integer
+  const notificationId = parseInt(id, 10);
+  if (isNaN(notificationId)) {
+    return res.status(400).json({ message: 'Invalid Notification ID' });
+  }
+
   try {
     const [result] = await db.query(
       'DELETE FROM Notification WHERE Notification_ID = ? AND User_ID = ?',
-      [id, userId]
+      [notificationId, userId]
     );
 
     if (result.affectedRows === 0) {
@@ -49,17 +64,23 @@ exports.deleteNotification = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-  
-// Update a notifications
+
+// Update a notification
 exports.updateNotification = async (req, res) => {
   const { id } = req.params; // Notification ID from URL
   const { newEventId, newReminderId } = req.body; // New Event and Reminder IDs from request body
   const userId = req.session.userId; // User ID from session
 
+  // Ensure Notification_ID is an integer
+  const notificationId = parseInt(id, 10);
+  if (isNaN(notificationId)) {
+    return res.status(400).json({ message: 'Invalid Notification ID' });
+  }
+
   try {
     const [result] = await db.query(
-      'UPDATE Notification SET Event_ID = ?, Reminder_ID = ? WHERE Notification_ID = ? AND User_ID = ?',
-      [newEventId, newReminderId, id, userId]
+      'UPDATE Notification SET eventId = ?, Reminder_ID = ? WHERE Notification_ID = ? AND User_ID = ?',
+      [newEventId, newReminderId, notificationId, userId]
     );
 
     if (result.affectedRows === 0) {
@@ -72,9 +93,13 @@ exports.updateNotification = async (req, res) => {
   }
 };
 
-// Plan a notifications
+// Schedule a notification
 function scheduleNotification(token, message, scheduleTime, notificationId) {
   const delay = new Date(scheduleTime) - new Date();
+
+  // Log current time and scheduled time to debug
+  console.log('Current Time:', new Date());
+  console.log('Schedule Time:', new Date(scheduleTime));
 
   if (delay < 0) {
     console.log('Cannot schedule a notification in the past.');
@@ -97,27 +122,7 @@ function scheduleNotification(token, message, scheduleTime, notificationId) {
   }, delay);
 }
 
-/*
-//Simulated function
-function sendPushNotification(token, message) {
-  const payload = {
-    notification: {
-      title: 'Event Reminder',
-      body: message,
-    },
-    token: token,
-  };
-
-  // Simulate by logging the payload
-  console.log('Simulating push notification...');
-  console.log('Payload:', payload);
-
-  // Simulate success response from Firebase
-  console.log('Simulated response: Notification successfully sent!');
-}
-*/
-
-//function that sends actual push notifications to users' devices via Firebase Cloud Messaging (FCM)
+// Function that sends actual push notifications to user's devices via Firebase Cloud Messaging (FCM)
 function sendPushNotification(token, message) {
   const payload = {
     notification: {
@@ -138,14 +143,9 @@ function sendPushNotification(token, message) {
 
 // Helper function to calculate the reminder time
 function calculateScheduleTime(eventStartTime, reminderTime) {
-  const eventTime = moment(eventStartTime);
+  const eventTime = moment(eventStartTime);  // Use local time
   return eventTime.subtract(moment.duration(reminderTime)).toDate();
 }
-
-//Input Validation
-const validateInput = (input) => {
-  return input && !isNaN(Number(input));
-};
 
 // Create a notification and schedule a push notification
 exports.addNotification = async (req, res) => {
@@ -169,75 +169,76 @@ exports.addNotification = async (req, res) => {
     const connection = await db.getConnection();
     await connection.beginTransaction();
 
-    // Fetch event start time
-    const [event] = await connection.query('SELECT StartDateTime FROM Event WHERE Event_ID = ?', [eventId]);
-    if (event.length === 0) {
+    // Fetch event start time from Ticketmaster API
+    const event = await getEventFromTicketmaster(eventId);  // Fetch event details from Ticketmaster API
+    if (!event) {
       throw new Error('Event not found');
     }
-    const eventStartTime = event[0].StartDateTime;
+
+    // Use the correct event start time: dateTime (ISO 8601 format)
+    const eventStartTime = event.dateTime;  // ISO 8601 dateTime from the event object
+
+    // Check if event has already passed
+    if (moment(eventStartTime).isBefore(moment())) {
+      console.log('Event has already passed.');
+      return res.status(400).json({ message: 'Event has already passed' });
+    }
 
     // Fetch user's FCM token
-    const userToken = await fetchUserToken(userId, connection);
+    const [user] = await connection.query('SELECT FCM_Token FROM user WHERE User_ID = ?', [userId]);
+    if (user.length === 0 || !user[0].FCM_Token) {
+      throw new Error('User FCM Token not found');
+    }
 
-    // Loop through reminders and create notifications
-    for (const reminderId of reminders) {
-      const scheduleTime = moment(eventStartTime)
-        .subtract(REMINDER_TYPES[reminderId].duration)
-        .toDate();
+    const userToken = user[0].FCM_Token;
 
-      // Insert notification into the database
+    // Loop over each reminder and schedule notification
+    for (const reminder of reminders) {
+      const reminderDuration = REMINDER_TYPES[reminder].duration;
+      const scheduleTime = calculateScheduleTime(eventStartTime, reminderDuration);
+
+      // Insert the notification into the database
       const [result] = await connection.query(
-        'INSERT INTO Notification (User_ID, Event_ID, Reminder_ID, Time_Reminder, Is_Read) VALUES (?, ?, ?, ?, false, false)',
-        [userId, eventId, reminderId, scheduleTime]
+        'INSERT INTO Notification (User_ID, eventId, Reminder_ID, Time_reminder) VALUES (?, ?, ?, ?)',
+        [userId, eventId, reminder, scheduleTime]
       );
+      const notificationId = result.insertId;
 
-      const notificationId = result.insertId; // Get the newly inserted notification ID
-
-      // Schedule the push notification
-      const message = `Reminder: Your event starts at ${moment(eventStartTime).format('YYYY-MM-DD HH:mm')}`;
+      // Schedule the notification
+      const message = `Reminder: ${event.name} is happening soon!`;
       scheduleNotification(userToken, message, scheduleTime, notificationId);
     }
 
+    // Commit transaction
     await connection.commit();
-    res.status(201).json({ message: 'Notifications created successfully' });
+    res.json({ message: 'Notification(s) scheduled successfully' });
+
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error creating notification:', error);
+    res.status(500).json({ message: error.message || 'Error creating notification' });
   }
 };
 
-  
-async function fetchUserToken(userId, connection) {
-  const [user] = await connection.query('SELECT FCM_Token FROM User WHERE User_ID = ?', [userId]);
-  if (user.length === 0 || !user[0].FCM_Token) {
-    throw new Error('User token not found');
+// Helper function to fetch event details from Ticketmaster API
+async function getEventFromTicketmaster(eventId) {
+  try {
+    const apiKey = process.env.TICKETMASTER_API_KEY;
+    const apiUrl = `https://app.ticketmaster.com/discovery/v2/events/${eventId}.json`;
+
+    const response = await axios.get(apiUrl, { params: { apikey: apiKey } });
+
+    const eventData = response.data;
+
+    const event = {
+      id: eventData.id,
+      name: eventData.name,
+      dateTime: eventData.dates.start.dateTime,  // Use ISO 8601 dateTime
+      // Include other event details if needed
+    };
+
+    return event;
+  } catch (error) {
+    console.error('Error fetching event from Ticketmaster:', error.response ? error.response.data : error.message);
+    return null;
   }
-  return user[0].FCM_Token;
 }
-
-async function fetchEventStartTime(eventId, connection) {
-  const [event] = await connection.query('SELECT StartDateTime FROM Event WHERE Event_ID = ?', [eventId]);
-  if (event.length === 0) {
-    throw new Error('Event not found');
-  }
-  return event[0].StartDateTime;
-}
-
-async function fetchReminderTime(reminderId, connection) {
-  const [reminder] = await connection.query('SELECT Reminder_Time FROM Event_Reminders WHERE Reminder_ID = ?', [reminderId]);
-  if (reminder.length === 0) {
-    throw new Error('Reminder not found');
-  }
-  return reminder[0].Reminder_Time;
-}
-
-
-async function handleNotificationScheduling(userId, eventId, reminderId, connection) {
-  const eventStartTime = await fetchEventStartTime(eventId, connection);
-  const reminderTime = await fetchReminderTime(reminderId, connection);
-  const scheduleTime = calculateScheduleTime(eventStartTime, reminderTime);
-  const userToken = await fetchUserToken(userId, connection);
-  const message = `Reminder for your event at ${scheduleTime}`;
-  scheduleNotification(userToken, message, scheduleTime);
-  return scheduleTime;
-}
-

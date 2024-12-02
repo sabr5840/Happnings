@@ -1,3 +1,4 @@
+
 const fs = require('fs');
 const mysql = require('mysql2/promise');
 const express = require('express');
@@ -75,10 +76,11 @@ app.get('/api/db-test', async (req, res) => {
   }
 });
 
+
 // Brug dine routes efter session middleware
 app.use('/api/users', userRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/events', eventRoutes);
+app.use('/api', notificationRoutes);
+app.use('/api', eventRoutes);
 app.use('/api', categoryRoutes);
 app.use('/api', favoriteRoutes); 
 

@@ -1,94 +1,45 @@
-const db = require('../config/db');
+require('dotenv').config(); 
+const axios = require('axios');
 
-// Get all categories
-exports.getCategories = async (req, res) => {
+let cachedCategories = null;
+
+
+// Function to fetch categories
+const fetchCategories = async () => {
+  if (cachedCategories) return cachedCategories;  // Return cached categories if they exist
   try {
-    const [categories] = await db.query('SELECT Category_ID, Name FROM Category');
+    const apiKey = process.env.TICKETMASTER_API_KEY;
+    const apiUrl = 'https://app.ticketmaster.com/discovery/v2/classifications.json';
+    const params = {
+      apikey: apiKey,
+    };
+
+    const response = await axios.get(apiUrl, { params });
+
+    // Filter only the top-level categories
+    const topCategories = response.data._embedded.classifications.filter((classification) => !classification.subClassifications);
+    cachedCategories = topCategories;  // Cache the results
+
+    return topCategories;
+  } catch (error) {
+    console.error('Error fetching categories from Ticketmaster:', error.response ? error.response.data : error.message);
+    throw new Error('Error fetching categories from Ticketmaster');
+  }
+};
+
+// Controller function to get categories
+const getCategories = async (req, res) => {
+  try {
+    const categories = await fetchCategories();
     res.json(categories);
   } catch (error) {
-    res.status(500).json({ error: error.message });
+    console.error('Error:', error);
+    res.status(500).json({ message: 'Error fetching categories' });
   }
 };
 
-// Get events with filtering and sorting
-exports.getFilteredAndSortedEvents = async (req, res) => {
-  const { categoryIds, startDates, sort, order } = req.query;
 
-  // Debugging request parameters
-  console.log('Raw Request Query:', req.query);
 
-  // Validate that at least one filter or sorting is provided
-  if (!categoryIds && !startDates && !sort) {
-    return res.status(400).json({
-      message: 'Please provide at least one filter (categoryIds or startDates) or sorting option (sort).',
-    });
-  }
-
-  try {
-    let query = `
-      SELECT 
-        Events.Event_ID, 
-        Events.Title, 
-        Events.Description, 
-        Events.StartDateTime, 
-        Events.EndDateTime, 
-        Events.Price, 
-        Events.Image_URL, 
-        Category.Name AS CategoryName 
-      FROM Events
-      LEFT JOIN Category ON Events.CategoryID = Category.Category_ID
-    `;
-    const params = [];
-    const conditions = [];
-
-    // Handle categoryIds filter
-    if (categoryIds) {
-      const categoryArray = categoryIds.split(',').map((id) => id.trim()).filter(Boolean);
-      console.log('Parsed Category IDs:', categoryArray);
-      if (categoryArray.length > 0) {
-        conditions.push(`Category.Category_ID IN (${categoryArray.map(() => '?').join(',')})`);
-        params.push(...categoryArray);
-      }
-    }
-
-    // Handle startDates filter
-    if (startDates) {
-      const startDateArray = startDates.split(',').map((date) => date.trim());
-      console.log('Parsed Start Dates:', startDateArray);
-      if (startDateArray.length > 0) {
-        // Match only the date part of StartDateTime
-        conditions.push(`DATE(Events.StartDateTime) IN (${startDateArray.map(() => '?').join(',')})`);
-        params.push(...startDateArray);
-      }
-    }
-
-    // Add WHERE clause if there are conditions
-    if (conditions.length > 0) {
-      query += ` WHERE ${conditions.join(' AND ')}`;
-    }
-
-    // Handle sorting
-    if (sort) {
-      const validSortFields = ['StartDateTime', 'Price'];
-      if (validSortFields.includes(sort)) {
-        query += ` ORDER BY ${sort} ${order === 'desc' ? 'DESC' : 'ASC'}`;
-      } else {
-        return res.status(400).json({
-          message: 'Invalid sort field. Valid fields are StartDateTime and Price.',
-        });
-      }
-    }
-
-    console.log('Final Query:', query); // Debug final query
-    console.log('Parameters:', params); // Debug parameters
-
-    const [events] = await db.query(query, params); // Execute query
-    res.json(events); // Return events as JSON
-  } catch (error) {
-    console.error('Error during query execution:', error.message); // Debug errors
-    res.status(500).json({ error: error.message }); // Handle errors
-  }
-};
-
+module.exports = { getCategories, fetchCategories};
 
 
