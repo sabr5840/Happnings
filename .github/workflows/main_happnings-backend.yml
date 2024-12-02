@@ -30,6 +30,11 @@ jobs:
         working-directory: ./backend
         run: npm install
 
+      - name: Create azure-ca.pem from secret
+        run: |
+          mkdir -p backend/certs
+          echo "${{ secrets.AZURE_CA_CERT }}" > backend/certs/azure-ca.pem
+
       - name: Run tests
         working-directory: ./backend
         run: npm test
