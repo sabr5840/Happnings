@@ -80,6 +80,11 @@ app.get('/api/db-test', async (req, res) => {
   }
 });
 
+app.get('/', (req, res) => {
+  res.send('Server is running!');
+});
+
+
 app.get('/api/test', (req, res) => {
   res.json({ message: 'Azure backend is working!' });
 });
