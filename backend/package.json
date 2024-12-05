@@ -4,7 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "start": "node server.js"
   },
   "babel": {
     "presets": [
@@ -39,4 +40,6 @@
     "mysql2": "^3.11.5",
     "rewire": "^7.0.0"
   }
+  
 }
+
