@@ -24,10 +24,14 @@ app.use(express.json());
 // Enable CORS with credentials
 app.use(
   cors({
-    origin: 'http://localhost:3000', // Update this if your client runs on a different origin
+    origin: [
+      'http://localhost:3000', 
+      'https://happnings-backend-ddh5gnd3f8fvbxdt.northeurope-01.azurewebsites.net'
+    ],
     credentials: true
   })
 );
+
 
 // Database connection options
 const dbOptions = {
@@ -76,6 +80,10 @@ app.get('/api/db-test', async (req, res) => {
   }
 });
 
+app.get('/api/test', (req, res) => {
+  res.json({ message: 'Azure backend is working!' });
+});
+
 
 // Brug dine routes efter session middleware
 app.use('/api/users', userRoutes);
@@ -83,6 +91,7 @@ app.use('/api', notificationRoutes);
 app.use('/api', eventRoutes);
 app.use('/api', categoryRoutes);
 app.use('/api', favoriteRoutes); 
+
 
 // Start serveren
 const PORT = process.env.PORT || 3000;
