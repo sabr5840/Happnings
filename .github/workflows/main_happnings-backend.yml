@@ -28,7 +28,9 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./backend
-        run: npm install
+        run: |
+          npm install
+          npm list
 
       - name: Create azure-ca.pem from secret
         run: |
@@ -97,7 +99,3 @@ jobs:
           app-name: 'Happnings-backend'
           slot-name: 'Production'
           package: backend.zip
-
-
-
-          
