@@ -43,21 +43,23 @@ jobs:
         working-directory: ./backend
         run: npm run build --if-present
 
-      - name: List files in backend and create a zip of the backend directory
+      - name: List files in backend
         run: |
-          pwd
-          ls -la
-          zip -r ../backend.zip . -x "**/node_modules/**" "**/test/**" "**/*.log" "**/.env"
-          ls -la ../
+          cd backend
+          ls -R
+
+      - name: Create a zip of the backend directory
+        run: |
+          zip -r backend.zip backend -x "**/node_modules/**" "**/test/**" "**/*.log" "**/.env"
 
       - name: Check backend.zip size
-        run: du -h ../backend.zip
+        run: du -h backend.zip
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
-          path: ../backend.zip
+          path: backend.zip
 
   deploy:
     runs-on: ubuntu-latest
@@ -74,7 +76,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-          path: ./ 
+          path: ./
 
       - name: List files after downloading build artifacts
         run: |
