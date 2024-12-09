@@ -31,7 +31,7 @@ jobs:
         working-directory: ./backend
         run: npm install
 
-      # Test-steppet er fjernet her
+      # Her er test-steppet fjernet
 
       - name: Build application
         working-directory: ./backend
@@ -61,18 +61,9 @@ jobs:
         with:
           name: backend-build
 
-      - name: Set up Firebase CLI
+      - name: Deploy to Firebase Hosting and Functions
         uses: w9jds/firebase-action@v2.2.1
         with:
-          args: projects:list
+          args: deploy --only hosting,functions
         env:
           FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-
-      - name: Deploy to Firebase Hosting
-        run: |
-          firebase deploy --only hosting,functions
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-
-
-          
