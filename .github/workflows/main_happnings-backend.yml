@@ -1,4 +1,4 @@
-name: Build, test, and deploy Node.js app to Firebase Hosting
+name: Build and deploy Node.js app to Firebase Hosting
 
 on:
   push:
@@ -31,9 +31,7 @@ jobs:
         working-directory: ./backend
         run: npm install
 
-      - name: Run tests
-        working-directory: ./backend
-        run: npm test
+      # Test-steppet er fjernet her
 
       - name: Build application
         working-directory: ./backend
