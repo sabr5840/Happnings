@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,22 +6,45 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome'; 
+import { API_URL } from '@env'; // Importer API_URL fra dine miljøvariabler
 
 const LoginScreen = ({ navigation }) => {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleLogin = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/users/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+      const json = await response.json();
+      if (response.status === 200) {
+        console.log('Login success:', json);
+        // Håndter vellykket login, f.eks. navigation eller lagring af session data
+        navigation.navigate('Home'); // Antager at du har en 'Home' skærm
+      } else {
+        Alert.alert('Login Failed', json.message);
+      }
+    } catch (error) {
+      Alert.alert('Network Error', 'Unable to connect to server');
+      console.error('Login error:', error);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {/* App Logo */}
       <Image
         source={require('./assets/logo.png')}
         style={styles.logo}
       />
-
-      {/* Login Title */}
       <Text style={styles.title}>Log in</Text>
-
-      {/* Email Input */}
       <View style={styles.inputBlock}>
         <View style={styles.inputIconRow}>
           <Icon name="user" size={22} color="#000" />
@@ -29,12 +52,12 @@ const LoginScreen = ({ navigation }) => {
             style={styles.input}
             placeholder="Email"
             placeholderTextColor="#aaa"
+            onChangeText={setEmail}
+            value={email}
           />
         </View>
         <View style={styles.inputLine} />
       </View>
-
-      {/* Password Input */}
       <View style={styles.inputBlock}>
         <View style={styles.inputIconRow}>
           <Icon name="lock" size={22} color="#000" />
@@ -43,17 +66,15 @@ const LoginScreen = ({ navigation }) => {
             placeholder="Password"
             placeholderTextColor="#aaa"
             secureTextEntry
+            onChangeText={setPassword}
+            value={password}
           />
         </View>
         <View style={styles.inputLine} />
       </View>
-
-      {/* Login Button */}
-      <TouchableOpacity style={styles.button}>
+      <TouchableOpacity style={styles.button} onPress={handleLogin}>
         <Text style={styles.buttonText}>Log in</Text>
       </TouchableOpacity>
-
-      {/* Signup Link */}
       <Text style={styles.signupText}>
         Not registered yet?
       </Text>

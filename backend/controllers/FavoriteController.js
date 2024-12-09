@@ -1,5 +1,5 @@
 const axios = require('axios');
-const db = require('../config/db');
+const { db } = require('../config/firebaseAdmin');
 
 // Add an event to favorite
 exports.addToFavorite = async (req, res) => {

@@ -1,11 +1,9 @@
 // controllers/userController.js
 
-const db = require('../config/db');
-const bcrypt = require('bcryptjs');
+const { db, admin } = require('../config/firebaseAdmin');
 
 // Register a new user
 exports.registerUser = async (req, res) => {
-  console.log('Request Body:', req.body); // Log input
   const { name, email, password } = req.body;
 
   try {
@@ -13,65 +11,78 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    const [existingUser] = await db.query('SELECT * FROM User WHERE Email = ?', [email]);
-    if (existingUser.length > 0) {
-      return res.status(400).json({ message: 'User already exists' });
-    }
+    // Opret bruger med Firebase Authentication
+    const userRecord = await admin.auth().createUser({
+      email,
+      password,
+      displayName: name,
+    });
 
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const placeholderToken = `fcm_token_${Date.now()}`;
-    const [result] = await db.query(
-      'INSERT INTO User (Name, Email, Password, FCM_Token) VALUES (?, ?, ?, ?)',
-      [name, email, hashedPassword, placeholderToken]
-    );
+    // Gem yderligere oplysninger i Firestore
+    await db.collection('users').doc(userRecord.uid).set({
+      Name: name,
+      Email: email,
+      Date_of_registration: new Date(),
+      FCM_Token: null, // Placeholder, opdateres ved login
+    });
 
-    res.status(201).json({ message: 'User registered successfully', userId: result.insertId });
+    res.status(201).json({ message: 'User registered successfully', userId: userRecord.uid });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
-
 
 // Login a user
 exports.loginUser = async (req, res) => {
-  const { email, password, token } = req.body; // Assume token is sent from the client
+  const { email, password, token } = req.body;
 
   try {
-    const [user] = await db.query('SELECT * FROM User WHERE Email = ?', [email]);
-    if (user.length === 0) {
+    if (!email || !password || !token) {
+      return res.status(400).json({ message: 'Missing required fields' });
+    }
+
+    // Hent bruger via Firebase Authentication
+    const user = await admin.auth().getUserByEmail(email);
+
+    if (!user) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    const validPassword = await bcrypt.compare(password, user[0].Password);
-    if (!validPassword) {
-      return res.status(401).json({ message: 'Incorrect password' });
+    // Verificer adgangskode via REST API (du kan også bruge Firebase Client SDK i frontend)
+    const response = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.FIREBASE_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, returnSecureToken: true }),
+      }
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      return res.status(401).json({ message: 'Invalid credentials', error: errorData });
     }
 
-    // Update token in the database
-    await db.query('UPDATE User SET FCM_Token = ? WHERE User_ID = ?', [token, user[0].User_ID]);
+    const responseData = await response.json();
+    const idToken = responseData.idToken;
 
-    // Save user's ID in the session
-    req.session.userId = user[0].User_ID;
-    req.session.save((err) => {
-      if (err) {
-        return res.status(500).json({ message: 'Session save error' });
-      }
+    // Opdater FCM-token i Firestore
+    await db.collection('users').doc(user.uid).update({ FCM_Token: token });
 
-      res.json({ message: 'Login successful', token: token });
-    });
+    // Returner ID-token og brugerdata
+    res.json({ message: 'Login successful', userId: user.uid, token: idToken });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-
-// Log out 
+// Logout a user
 exports.logoutUser = (req, res) => {
   req.session.destroy((err) => {
     if (err) {
       return res.status(500).json({ message: 'Logout failed' });
     }
-    res.clearCookie('connect.sid'); // Fjern session-cookien
+    res.clearCookie('connect.sid');
     res.json({ message: 'Logout successful' });
   });
 };
@@ -79,7 +90,13 @@ exports.logoutUser = (req, res) => {
 // Get all users
 exports.getUsers = async (req, res) => {
   try {
-    const [users] = await db.query('SELECT User_ID, Name, Email, Date_of_registration FROM User');
+    const snapshot = await db.collection('users').get();
+
+    const users = snapshot.docs.map((doc) => ({
+      userId: doc.id,
+      ...doc.data(),
+    }));
+
     res.json(users);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -91,16 +108,14 @@ exports.getUserById = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const [user] = await db.query(
-      'SELECT User_ID, Name, Email, Date_of_registration FROM User WHERE User_ID = ?',
-      [id]
-    );
+    const userRef = db.collection('users').doc(id);
+    const user = await userRef.get();
 
-    if (user.length === 0) {
+    if (!user.exists) {
       return res.status(404).json({ message: 'User not found' });
     }
 
-    res.json(user[0]);
+    res.json({ userId: user.id, ...user.data() });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -112,16 +127,18 @@ exports.updateUser = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = password
+      ? await bcrypt.hash(password, 10)
+      : undefined;
 
-    const [result] = await db.query(
-      'UPDATE User SET Name = ?, Email = ?, Password = ? WHERE User_ID = ?',
-      [name, email, hashedPassword, id]
-    );
+    const updatedData = {
+      ...(name && { Name: name }),
+      ...(email && { Email: email }),
+      ...(hashedPassword && { Password: hashedPassword }),
+    };
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    const userRef = db.collection('users').doc(id);
+    await userRef.update(updatedData);
 
     res.json({ message: 'User updated successfully' });
   } catch (error) {
@@ -134,15 +151,14 @@ exports.deleteUser = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const [result] = await db.query('DELETE FROM User WHERE User_ID = ?', [id]);
+    // Slet bruger fra Firebase Authentication
+    await admin.auth().deleteUser(id);
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'User not found' });
-    }
+    // Slet bruger fra Firestore
+    await db.collection('users').doc(id).delete();
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
-

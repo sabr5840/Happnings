@@ -1,4 +1,4 @@
-name: Build, test, and deploy Node.js app to Azure Web App - Happnings-backend
+name: Build, test, and deploy Node.js app to Firebase Hosting
 
 on:
   push:
@@ -11,7 +11,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out repository
+        uses: actions/checkout@v4
 
       - name: Set up Node.js version
         uses: actions/setup-node@v3
@@ -28,14 +29,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./backend
-        run: |
-          npm install
-          npm list
-
-      - name: Create azure-ca.pem from secret
-        run: |
-          mkdir -p backend/certs
-          echo "${{ secrets.AZURE_CA_CERT }}" > backend/certs/azure-ca.pem
+        run: npm install
 
       - name: Run tests
         working-directory: ./backend
@@ -45,57 +39,39 @@ jobs:
         working-directory: ./backend
         run: npm run build --if-present
 
-      - name: List files in backend
-        run: |
-          cd backend
-          ls -R
+      - name: List files in backend directory
+        working-directory: ./backend
+        run: ls -R
 
-      - name: Create a zip of the backend directory
+      - name: Archive backend folder
         run: |
           zip -r backend.zip backend -x "**/node_modules/**" "**/test/**" "**/*.log" "**/.env"
-
-      - name: Check backend.zip size
-        run: du -h backend.zip
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: build-artifacts
+          name: backend-build
           path: backend.zip
 
   deploy:
     runs-on: ubuntu-latest
     needs: build-and-test
-    environment:
-      name: 'Production'
-      url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}
-    permissions:
-      id-token: write
-      contents: read
 
     steps:
       - name: Download build artifacts
         uses: actions/download-artifact@v4
         with:
-          name: build-artifacts
-          path: ./
+          name: backend-build
 
-      - name: List files after downloading build artifacts
+      - name: Set up Firebase CLI
+        uses: w9jds/firebase-action@v2.2.1
+        with:
+          args: projects:list
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: Deploy to Firebase Hosting
         run: |
-          pwd
-          ls -R
-
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZURE_CLIENT_ID }}
-          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
-          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
-
-      - name: Deploy to Azure Web App
-        uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
-        with:
-          app-name: 'Happnings-backend'
-          slot-name: 'Production'
-          package: backend.zip
+          firebase deploy --only hosting,functions
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}

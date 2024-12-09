@@ -1,5 +1,4 @@
 // routes/userRoutes.js
-const db = require('../config/db');
 
 const express = require('express');
 const {
@@ -9,40 +8,21 @@ const {
   updateUser,
   deleteUser,
   loginUser,
-  logoutUser
+  logoutUser,
 } = require('../controllers/userController');
-const authMiddleware = require('../middleware/authMiddleware');
+const authMiddleware = require('../middleware/authMiddleware'); // Middleware til beskyttelse af ruter
 
 const router = express.Router();
 
-// Public routes
-router.post('/register', registerUser);
-router.post('/login', loginUser);
-router.post('/logout', logoutUser);
+// Public routes (ingen token påkrævet)
+router.post('/register', registerUser); // Opret ny bruger
+router.post('/login', loginUser); // Log ind
+router.post('/logout', logoutUser); // Log ud
 
-// Protected routes
-router.get('/protected-route', authMiddleware, (req, res) => {
-  res.json({ message: 'This is a protected route' });
-});
-
-router.get('/', authMiddleware, getUsers);
-router.get('/:id', authMiddleware, getUserById);
-router.put('/:id', authMiddleware, updateUser);
-router.delete('/:id', authMiddleware, deleteUser);
-
-
-// Example endpoint to save FCM token
-router.post('/save-token', authMiddleware, async (req, res) => {
-  const { userId, token } = req.body;
-  try {
-    await db.query('UPDATE User SET FCM_Token = ? WHERE User_ID = ?', [token, userId]);
-    res.send({ message: "Token saved successfully" });
-  } catch (error) {
-    res.status(500).send({ message: "Failed to save token", error: error.message });
-  }
-});
-
-
-
+// Protected routes (kræver gyldig token via authMiddleware)
+router.get('/', authMiddleware, getUsers); // Hent alle brugere (beskyttet)
+router.get('/:id', authMiddleware, getUserById); // Hent en specifik bruger (beskyttet)
+router.put('/:id', authMiddleware, updateUser); // Opdater en bruger (beskyttet)
+router.delete('/:id', authMiddleware, deleteUser); // Slet en bruger (beskyttet)
 
 module.exports = router;

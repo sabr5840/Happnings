@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   View,
   Text,
@@ -6,22 +6,46 @@ import {
   TouchableOpacity,
   StyleSheet,
   Image,
+  Alert
 } from 'react-native';
-import Icon from 'react-native-vector-icons/FontAwesome';
+import Icon from 'react-native-vector-icons/FontAwesome'; 
+import { API_URL } from '@env'; // Importer API_URL fra dine miljøvariabler
 
 const SignUpScreen = ({ navigation }) => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+
+  const handleSignUp = async () => {
+    try {
+      const response = await fetch(`${API_URL}/api/users/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name, email, password }),
+      });
+      const json = await response.json();
+      if (response.status === 201) {
+        console.log('Signup success:', json);
+        Alert.alert('Signup Success', 'User registered successfully');
+        navigation.navigate('Login');
+      } else {
+        Alert.alert('Signup Failed', json.message);
+      }
+    } catch (error) {
+      Alert.alert('Network Error', 'Unable to connect to server');
+      console.error('Signup error:', error);
+    }
+  };
+
   return (
     <View style={styles.container}>
-      {/* App Logo */}
       <Image
         source={require('./assets/logo.png')}
         style={styles.logo}
       />
-
-      {/* Sign Up Title */}
       <Text style={styles.title}>Sign Up</Text>
-
-      {/* Full Name Input */}
       <View style={styles.inputBlock}>
         <View style={styles.inputIconRow}>
           <Icon name="id-card" size={22} color="#000" />
@@ -29,12 +53,12 @@ const SignUpScreen = ({ navigation }) => {
             style={styles.input}
             placeholder="Full Name"
             placeholderTextColor="#aaa"
+            onChangeText={setName}
+            value={name}
           />
         </View>
         <View style={styles.inputLine} />
       </View>
-
-      {/* Email Input */}
       <View style={styles.inputBlock}>
         <View style={styles.inputIconRow}>
           <Icon name="user" size={22} color="#000" />
@@ -42,12 +66,12 @@ const SignUpScreen = ({ navigation }) => {
             style={styles.input}
             placeholder="Email"
             placeholderTextColor="#aaa"
+            onChangeText={setEmail}
+            value={email}
           />
         </View>
         <View style={styles.inputLine} />
       </View>
-
-      {/* Password Input */}
       <View style={styles.inputBlock}>
         <View style={styles.inputIconRow}>
           <Icon name="lock" size={22} color="#000" />
@@ -56,17 +80,15 @@ const SignUpScreen = ({ navigation }) => {
             placeholder="Password"
             placeholderTextColor="#aaa"
             secureTextEntry
+            onChangeText={setPassword}
+            value={password}
           />
         </View>
         <View style={styles.inputLine} />
       </View>
-
-      {/* Sign Up Button */}
-      <TouchableOpacity style={styles.button}>
+      <TouchableOpacity style={styles.button} onPress={handleSignUp}>
         <Text style={styles.buttonText}>Sign Up</Text>
       </TouchableOpacity>
-
-      {/* Login Link */}
       <View style={styles.loginContainer}>
         <Text style={styles.loginText}>
           Already registered?
@@ -100,8 +122,7 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-start',
     marginLeft: 15,
     marginTop: -30,
-    
-    },
+  },
   inputBlock: {
     width: '90%',
     marginBottom: 15,

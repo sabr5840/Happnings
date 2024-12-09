@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "838223939901",
+    "project_id": "happnings-d76a6",
+    "storage_bucket": "happnings-d76a6.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:838223939901:android:d7c87ebfdd8a6d1b6bdd54",
+        "android_client_info": {
+          "package_name": "com.minapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD3pSc-tldxrLyNSvfQyIQAcEaxq3Ji3XY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -1,6 +1,6 @@
 // controllers/NotificationController.js
 
-const db = require('../config/db');
+const { db } = require('../config/firebaseAdmin');
 const cron = require('node-cron');
 const moment = require('moment');
 const admin = require('../config/firebaseAdmin');
