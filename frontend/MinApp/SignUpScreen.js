@@ -29,7 +29,7 @@ const SignUpScreen = ({ navigation }) => {
       if (response.status === 201) {
         console.log('Signup success:', json);
         Alert.alert('Signup Success', 'User registered successfully');
-        navigation.navigate('Login');
+        navigation.navigate('Home'); // Ændre destination til Home
       } else {
         Alert.alert('Signup Failed', json.message);
       }
@@ -38,6 +38,7 @@ const SignUpScreen = ({ navigation }) => {
       console.error('Signup error:', error);
     }
   };
+  
 
   return (
     <View style={styles.container}>

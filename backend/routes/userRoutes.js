@@ -1,5 +1,3 @@
-// routes/userRoutes.js
-
 const express = require('express');
 const {
   registerUser,
@@ -16,7 +14,7 @@ const router = express.Router();
 
 // Public routes (ingen token påkrævet)
 router.post('/register', registerUser); // Opret ny bruger
-router.post('/login', loginUser); // Log ind
+router.post('/login', loginUser); // Log ind uden token
 router.post('/logout', logoutUser); // Log ud
 
 // Protected routes (kræver gyldig token via authMiddleware)

@@ -33,13 +33,14 @@ exports.registerUser = async (req, res) => {
 
 // Login a user
 exports.loginUser = async (req, res) => {
-  const { email, password, token } = req.body;
+  const { email, password } = req.body;
 
   try {
-    if (!email || !password || !token) {
+    if (!email || !password) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
+    // Firebase Authentication API kald for at logge ind
     const response = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.FIREBASE_API_KEY}`,
       {
@@ -55,15 +56,18 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials', error: responseData });
     }
 
-    // Opdater FCM Token i Firestore
-    await db.collection('users').doc(responseData.localId).update({ FCM_Token: token });
-
-    res.json({ message: 'Login successful', userId: responseData.localId, token: responseData.idToken });
+    // Returnér kun idToken og userId
+    res.json({
+      message: 'Login successful',
+      userId: responseData.localId,
+      token: responseData.idToken, // Firebase returnerer en autentificeringstoken (idToken)
+    });
   } catch (error) {
     console.error('Login Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
+
 
 
 // Logout a user
