@@ -2,6 +2,7 @@
 require('dotenv').config(); 
 const axios = require('axios');
 
+
 // Funktion til at hente events baseret på brugerens GPS-placering, radius og kategori
 const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startDateTime, endDateTime, category) => {
   try {

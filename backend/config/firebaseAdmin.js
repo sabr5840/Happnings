@@ -1,12 +1,13 @@
-const admin = require('firebase-admin');
-const { initializeApp } = require('firebase/app'); // Tilføj dette
-const serviceAccount = require('./happnings-d76a6-firebase-adminsdk-rb4zp-18a24b2a86.json');
+require('dotenv').config(); // Indlæs miljøvariabler fra .env
 
-if (!admin.apps.length) {
-  admin.initializeApp({
-    credential: admin.credential.cert(serviceAccount),
-  });
-}
+const admin = require('firebase-admin');
+const { initializeApp } = require('firebase/app');
+const serviceAccount = require('./happnings-d76a6-firebase-adminsdk-rb4zp-cf9db3895f.json');
+
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+  databaseURL: 'https://happnings-d76a6.firebaseio.com', // Din Firebase Database URL.
+});
 
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
@@ -18,7 +19,8 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID,
 };
 
-// Initialiser Firebase-appen (ikke-admin SDK)
+console.log('Firebase Config Loaded:', firebaseConfig);
+
 const firebaseApp = initializeApp(firebaseConfig);
 
 const db = admin.firestore();

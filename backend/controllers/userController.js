@@ -1,6 +1,6 @@
-// controllers/userController.js
-
 const { db, admin } = require('../config/firebaseAdmin');
+const fetch = require('node-fetch');
+
 
 // Register a new user
 exports.registerUser = async (req, res) => {
@@ -11,23 +11,22 @@ exports.registerUser = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Opret bruger med Firebase Authentication
     const userRecord = await admin.auth().createUser({
       email,
       password,
       displayName: name,
     });
 
-    // Gem yderligere oplysninger i Firestore
     await db.collection('users').doc(userRecord.uid).set({
       Name: name,
       Email: email,
       Date_of_registration: new Date(),
-      FCM_Token: null, // Placeholder, opdateres ved login
+      FCM_Token: null,
     });
 
     res.status(201).json({ message: 'User registered successfully', userId: userRecord.uid });
   } catch (error) {
+    console.error('Registration Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -41,14 +40,6 @@ exports.loginUser = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Hent bruger via Firebase Authentication
-    const user = await admin.auth().getUserByEmail(email);
-
-    if (!user) {
-      return res.status(404).json({ message: 'User not found' });
-    }
-
-    // Verificer adgangskode via REST API (du kan også bruge Firebase Client SDK i frontend)
     const response = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.FIREBASE_API_KEY}`,
       {
@@ -58,47 +49,48 @@ exports.loginUser = async (req, res) => {
       }
     );
 
+    const responseData = await response.json();
     if (!response.ok) {
-      const errorData = await response.json();
-      return res.status(401).json({ message: 'Invalid credentials', error: errorData });
+      console.error('Firebase Login Error:', responseData);
+      return res.status(401).json({ message: 'Invalid credentials', error: responseData });
     }
 
-    const responseData = await response.json();
-    const idToken = responseData.idToken;
+    // Opdater FCM Token i Firestore
+    await db.collection('users').doc(responseData.localId).update({ FCM_Token: token });
 
-    // Opdater FCM-token i Firestore
-    await db.collection('users').doc(user.uid).update({ FCM_Token: token });
-
-    // Returner ID-token og brugerdata
-    res.json({ message: 'Login successful', userId: user.uid, token: idToken });
+    res.json({ message: 'Login successful', userId: responseData.localId, token: responseData.idToken });
   } catch (error) {
+    console.error('Login Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
+
 // Logout a user
 exports.logoutUser = (req, res) => {
-  req.session.destroy((err) => {
-    if (err) {
-      return res.status(500).json({ message: 'Logout failed' });
-    }
-    res.clearCookie('connect.sid');
-    res.json({ message: 'Logout successful' });
-  });
+  if (req.session) {
+    req.session.destroy((err) => {
+      if (err) {
+        console.error('Fejl ved sletning af session:', err);
+        return res.status(500).json({ message: 'Logout failed', error: err.message });
+      }
+      res.clearCookie('connect.sid'); // Fjern session-cookie
+      return res.json({ message: 'Logout successful' });
+    });
+  } else {
+    return res.status(400).json({ message: 'No session found' });
+  }
 };
+
 
 // Get all users
 exports.getUsers = async (req, res) => {
   try {
     const snapshot = await db.collection('users').get();
-
-    const users = snapshot.docs.map((doc) => ({
-      userId: doc.id,
-      ...doc.data(),
-    }));
-
+    const users = snapshot.docs.map((doc) => ({ userId: doc.id, ...doc.data() }));
     res.json(users);
   } catch (error) {
+    console.error('Get Users Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -117,6 +109,7 @@ exports.getUserById = async (req, res) => {
 
     res.json({ userId: user.id, ...user.data() });
   } catch (error) {
+    console.error('Get User by ID Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -127,14 +120,10 @@ exports.updateUser = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
-    const hashedPassword = password
-      ? await bcrypt.hash(password, 10)
-      : undefined;
-
     const updatedData = {
       ...(name && { Name: name }),
       ...(email && { Email: email }),
-      ...(hashedPassword && { Password: hashedPassword }),
+      ...(password && { Password: password }),
     };
 
     const userRef = db.collection('users').doc(id);
@@ -142,23 +131,33 @@ exports.updateUser = async (req, res) => {
 
     res.json({ message: 'User updated successfully' });
   } catch (error) {
+    console.error('Update User Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
 
 // Delete a user
 exports.deleteUser = async (req, res) => {
-  const { id } = req.params;
+  const { id } = req.params; // ID på brugeren, der skal slettes
+  const requesterId = req.user.uid; // ID på den bruger, der sender forespørgslen (fra authMiddleware)
 
   try {
-    // Slet bruger fra Firebase Authentication
+    // Tjek om requesterId matcher id
+    if (requesterId !== id) {
+      return res.status(403).json({ message: 'You are not authorized to delete this account' });
+    }
+
+    // Slet brugeren fra Firebase Authentication
     await admin.auth().deleteUser(id);
 
-    // Slet bruger fra Firestore
+    // Slet brugeren fra Firestore
     await db.collection('users').doc(id).delete();
 
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
+    console.error('Delete User Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
+
+

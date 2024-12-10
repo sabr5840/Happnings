@@ -3,7 +3,7 @@ const { db } = require('../config/firebaseAdmin');
 
 // Add an event to favorite
 exports.addToFavorite = async (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.user.uid; // Hent userId fra det decoded token
   const { eventId } = req.body;
 
   if (!eventId) {
@@ -21,30 +21,35 @@ exports.addToFavorite = async (req, res) => {
       return res.status(404).json({ message: 'Event not found' });
     }
 
-    const [existingFavorites] = await db.query('SELECT * FROM Favorite WHERE User_ID = ? AND eventId = ?', [userId, eventId]);
-    if (existingFavorites?.length > 0) {
+    // Tjek om eventet allerede findes i favoritter
+    const existingFavorite = await db
+      .collection('favorites')
+      .where('userId', '==', userId)
+      .where('eventId', '==', eventId)
+      .get();
+
+    if (!existingFavorite.empty) {
       console.log("Event is already in favorites");
       return res.status(400).json({ message: 'Event is already in favorite' });
     }
 
-    await db.query(
-      'INSERT INTO Favorite (User_ID, eventId, Title, Date, Time, PriceRange, imageUrl, imageWidth, imageHeight, Category, Venue, VenueAddress, EventUrl) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-      [
-        userId,
-        eventId,
-        event.name,
-        event.dates.start.localDate,
-        event.dates.start.localTime || null,
-        event.priceRanges?.[0]?.min || null,
-        event.images?.[0]?.url || null,
-        event.images?.[0]?.width || null,
-        event.images?.[0]?.height || null,
-        event.classifications?.[0]?.genre?.name || null,
-        event._embedded?.venues?.[0]?.name || null,
-        JSON.stringify(event._embedded?.venues?.[0]?.address) || null,
-        event.url || null,
-      ]
-    );
+    // Tilføj event til favoritter
+    await db.collection('favorites').add({
+      userId,
+      eventId,
+      title: event.name,
+      date: event.dates.start.localDate,
+      time: event.dates.start.localTime || null,
+      priceRange: event.priceRanges?.[0]?.min || null,
+      imageUrl: event.images?.[0]?.url || null,
+      imageWidth: event.images?.[0]?.width || null,
+      imageHeight: event.images?.[0]?.height || null,
+      category: event.classifications?.[0]?.genre?.name || null,
+      venue: event._embedded?.venues?.[0]?.name || null,
+      venueAddress: JSON.stringify(event._embedded?.venues?.[0]?.address) || null,
+      eventUrl: event.url || null,
+      createdAt: new Date().toISOString(), // Tilføj tidstempel
+    });
 
     console.log("Event added to favorites");
     res.status(201).json({ message: 'Event added to favorite' });
@@ -60,39 +65,58 @@ exports.addToFavorite = async (req, res) => {
 
 // Get all favorite events for a user
 exports.getFavorite = async (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.user.uid; // Hent userId fra det decoded token
 
   try {
-    const [favorite] = await db.query(
-      `SELECT f.Favorite_ID, f.eventId, f.title, f.date, f.time, f.priceRange, f.imageUrl, f.imageWidth, f.imageHeight, f.category, f.venue, f.venueAddress, f.eventUrl
-       FROM Favorite f
-       WHERE f.User_ID = ?`,
-      [userId]
-    );
+    const snapshot = await db
+      .collection('favorites')
+      .where('userId', '==', userId)
+      .get();
 
-    res.json(favorite);
+    const favorites = snapshot.docs.map((doc) => ({
+      id: doc.id,
+      ...doc.data(),
+    }));
+
+    res.json(favorites);
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
 };
 
-// Remove an event from favorite
 exports.removeFromFavorite = async (req, res) => {
-  const userId = req.session.userId;
+  const userId = req.user.uid; // Hent bruger-ID fra decoded token
   const { favoriteId } = req.params;
 
   try {
-    const [result] = await db.query(
-      'DELETE FROM Favorite WHERE Favorite_ID = ? AND User_ID = ?',
-      [favoriteId, userId]
-    );
+    // Log favoriteId og userId
+    console.log('Favorite ID from request:', favoriteId);
+    console.log('User ID from token:', userId);
 
-    if (result.affectedRows === 0) {
+    // Hent dokumentet fra Firestore
+    const favoriteDoc = await db.collection('favorites').doc(favoriteId).get();
+
+    // Log data fra dokumentet
+    console.log('Firestore Document Data:', favoriteDoc.exists ? favoriteDoc.data() : 'Document not found');
+
+    if (!favoriteDoc.exists) {
       return res.status(404).json({ message: 'Favorite not found' });
     }
 
+    // Tjek om userId matcher
+    if (favoriteDoc.data().userId !== userId) {
+      console.log('Unauthorized deletion attempt. Document userId:', favoriteDoc.data().userId);
+      return res.status(403).json({ message: 'Unauthorized to delete this favorite' });
+    }
+
+    // Slet dokumentet
+    await db.collection('favorites').doc(favoriteId).delete();
+
+    console.log('Favorite successfully deleted:', favoriteId);
     return res.status(200).json({ message: 'Event removed from favorite' });
   } catch (error) {
-    return res.status(500).json({ error: error.message });
+    console.error('Error in removeFromFavorite:', error.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
   }
 };
+

@@ -1,87 +1,91 @@
-// server.js
-
 const express = require('express');
-const dotenv = require('dotenv');
-const session = require('express-session');
-const userRoutes = require('./routes/userRoutes');
-const categoryRoutes = require('./routes/categoryRoutes');
-const notificationRoutes = require('./routes/notificationRoutes');
-const eventRoutes = require('./routes/eventRoutes');
-const favoriteRoutes = require('./routes/favoriteRoutes');
-const cors = require('cors');
-const cookieParser = require('cookie-parser');
+const session = require('express-session'); // Tilføj express-session
+const { admin, db } = require('./config/firebaseAdmin'); // Korrekt sti til firebaseAdmin.js
+const userRoutes = require('./routes/userRoutes'); // Importer userRoutes
+const eventRoutes = require('./routes/eventRoutes'); // Importer eventRoutes
+const categoryRoutes = require('./routes/categoryRoutes'); // Importer categoryRoutes
+const favoriteRoutes = require('./routes/favoriteRoutes'); // Importer eventRoutes
+const notificationRoutes = require('./routes/notificationRoutes'); // Importer notificationRoutes
+const { sendPushNotification } = require('./utils/pushNotificationHelper');
 
-// Load environment variables
-dotenv.config();
+require('dotenv').config(); // Tilføj miljøvariabler fra .env-filen
+
 
 const app = express();
 
-// Middleware for parsing JSON requests
-app.use(express.json());
-
-// Enable CORS with credentials
-app.use(
-  cors({
-    origin: [
-      'http://localhost:3000', // Frontend udviklingsserver
-      'https://happnings-backend-ddh5gnd3f8fvbxdt.northeurope-01.azurewebsites.net', // Backend server (Azure)
-    ],
-    credentials: true,
-  })
-);
-
-// Initialize session middleware
-app.use(cookieParser());
+// Middleware
+app.use(express.json()); // Parser JSON
 app.use(
   session({
-    key: 'connect.sid',
-    secret: process.env.SESSION_SECRET || '1627hd8jdppæpy', // Brug miljøvariabel eller fallback
-    resave: false,
-    saveUninitialized: false,
-    cookie: {
-      secure: false, // Skal sættes til true, når du bruger HTTPS
-      sameSite: 'lax',
-      maxAge: 1000 * 60 * 60, // 1 time
-    },
+    secret: process.env.SESSION_SECRET || 'your_secret_key', // Brug din SESSION_SECRET fra .env
+    resave: false, // Gem ikke sessionen igen, hvis der ikke er ændringer
+    saveUninitialized: true, // Gem sessioner, selvom de ikke er initialiseret
+    cookie: { secure: false }, // Sæt secure til true, hvis du bruger HTTPS
   })
 );
 
-// Test Firestore connection
-const { db } = require('./config/firebaseAdmin');
-app.get('/api/db-test', async (req, res) => {
+// Test Firebase - Liste brugere
+app.get('/test-firebase', async (req, res) => {
   try {
-    const testRef = db.collection('test').doc('connection');
-    await testRef.set({ connected: true, timestamp: new Date() });
-    const doc = await testRef.get();
-
-    if (doc.exists) {
-      res.json({ message: 'Firestore connection successful', data: doc.data() });
-    } else {
-      res.status(404).json({ message: 'No data found in test document' });
-    }
+    const users = await admin.auth().listUsers();
+    res.status(200).json(users.users);
   } catch (error) {
-    console.error('Firestore connection error:', error);
-    res.status(500).json({ message: 'Firestore connection failed', error: error.message });
+    console.error('Fejl ved Firebase:', error);
+    res.status(500).send('Der opstod en fejl med Firebase');
   }
 });
 
-// Simple root endpoint
-app.get('/', (req, res) => {
-  res.send('Server is running!');
+// Test Firestore - Hent data fra "favorite" collection
+app.get('/test-firestore', async (req, res) => {
+  try {
+    const db = admin.firestore();
+    const snapshot = await db.collection('favorite').get();
+    const favorites = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+    res.status(200).json(favorites);
+  } catch (error) {
+    console.error('Fejl ved Firestore:', error);
+    res.status(500).send('Der opstod en fejl med Firestore');
+  }
 });
 
-// Test endpoint
-app.get('/api/test', (req, res) => {
-  res.json({ message: 'Backend is working!' });
+// Brug ruterne
+app.use('/api/users', userRoutes);
+app.use('/api/categories', categoryRoutes); 
+app.use('/api/events', eventRoutes);
+app.use('/api/favorites', favoriteRoutes);
+app.use('/api/notifications', notificationRoutes);
+
+// Logging middleware
+app.use((req, res, next) => {
+  console.log(`Incoming request: ${req.method} ${req.url}`);
+  next();
 });
 
-// Use your routes
-app.use('/api/users', userRoutes); // Ruter til brugerhåndtering
-app.use('/api/categories', categoryRoutes); // Ruter til kategorier
-app.use('/api/notifications', notificationRoutes); // Ruter til notifikationer
-app.use('/api/events', eventRoutes); // Ruter til events
-app.use('/api/favorites', favoriteRoutes); // Ruter til favoritter
+// Tilføj et endpoint til at udløse en push-notifikation
+app.get('/test-push', async (req, res) => {
+  const testToken = 'dit_test_fcm_token_her'; // Erstat dette med et gyldigt FCM token
+  try {
+    const response = await sendPushNotification(testToken, 'Test Title', 'This is a test push notification.');
+    res.status(200).json({ message: 'Push notification sent successfully', response });
+  } catch (error) {
+    res.status(500).json({ message: 'Failed to send push notification', error: error.message });
+  }
+});
 
-// Start the server
+// Start server
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+app.listen(PORT, () => {
+  console.log('Firebase Config Loaded:', {
+    apiKey: process.env.FIREBASE_API_KEY,
+    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
+    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
+    appId: process.env.FIREBASE_APP_ID,
+    measurementId: process.env.FIREBASE_MEASUREMENT_ID,
+  });
+
+  console.log('Server Environment Variables:');
+  console.log(`FIREBASE_API_KEY: ${process.env.FIREBASE_API_KEY}`);
+  console.log(`Serveren kører på port ${PORT}`);
+});

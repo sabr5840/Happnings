@@ -1,4 +1,4 @@
-// middleware/validateInput.js
+// backend/middleware/validateInput.js
 
 // Validerer, at eventId er en ikke-tom streng
 const validateEventId = (req, res, next) => {
@@ -9,10 +9,10 @@ const validateEventId = (req, res, next) => {
   next();
 };
 
-// Validerer, at favoriteId er et tal og ikke tomt
+// Justeret til at acceptere en string ID for favoriteId, ikke et tal
 const validateFavoriteId = (req, res, next) => {
   const { favoriteId } = req.params;
-  if (!favoriteId || isNaN(favoriteId)) {
+  if (!favoriteId || typeof favoriteId !== 'string' || favoriteId.trim() === '') {
       return res.status(400).json({ message: 'Invalid or missing Favorite ID' });
   }
   next();
