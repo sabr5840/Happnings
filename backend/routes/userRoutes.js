@@ -7,20 +7,20 @@ const {
   deleteUser,
   loginUser,
   logoutUser,
-} = require('../controllers/userController');
-const authMiddleware = require('../middleware/authMiddleware'); // Middleware til beskyttelse af ruter
+} = require('../controllers/userController'); // Kontroller stien til controlleren
+const authMiddleware = require('../middleware/authMiddleware'); // Kontroller stien til middleware
 
 const router = express.Router();
 
-// Public routes (ingen token påkrævet)
-router.post('/register', registerUser); // Opret ny bruger
-router.post('/login', loginUser); // Log ind uden token
-router.post('/logout', logoutUser); // Log ud
+// Public routes
+router.post('/register', registerUser);
+router.post('/login', loginUser);
+router.post('/logout', logoutUser);
 
-// Protected routes (kræver gyldig token via authMiddleware)
-router.get('/', authMiddleware, getUsers); // Hent alle brugere (beskyttet)
-router.get('/:id', authMiddleware, getUserById); // Hent en specifik bruger (beskyttet)
-router.put('/:id', authMiddleware, updateUser); // Opdater en bruger (beskyttet)
-router.delete('/:id', authMiddleware, deleteUser); // Slet en bruger (beskyttet)
+// Protected routes
+router.get('/', authMiddleware, getUsers);
+router.get('/:id', authMiddleware, getUserById);
+router.put('/:id', authMiddleware, updateUser);
+router.delete('/:id', authMiddleware, deleteUser);
 
 module.exports = router;

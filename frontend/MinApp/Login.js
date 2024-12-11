@@ -10,6 +10,8 @@ import {
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome'; 
 import { API_URL } from '@env'; // Importer API_URL fra dine miljøvariabler
+import AsyncStorage from '@react-native-async-storage/async-storage';  // Tilføj dette import
+
 
 const LoginScreen = ({ navigation }) => {
   const [email, setEmail] = useState('');
@@ -27,8 +29,9 @@ const LoginScreen = ({ navigation }) => {
       const json = await response.json();
       if (response.status === 200) {
         console.log('Login success:', json);
-        // Håndter vellykket login, f.eks. navigation eller lagring af session data
-        navigation.navigate('Home'); // Antager at du har en 'Home' skærm
+        await AsyncStorage.setItem('userId', json.userId);  // Gem brugerens ID
+        await AsyncStorage.setItem('authToken', json.token);  // Gem brugerens token
+        navigation.navigate('Home');
       } else {
         Alert.alert('Login Failed', json.message);
       }

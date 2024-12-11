@@ -1,5 +1,3 @@
-// backend/middleware/authMiddleware.js
-
 const { admin } = require('../config/firebaseAdmin');
 
 const authMiddleware = async (req, res, next) => {
@@ -13,7 +11,8 @@ const authMiddleware = async (req, res, next) => {
     return res.status(401).json({ message: 'No token provided' });
   }
 
-  const token = authHeader.split(' ')[1];
+  const token = authHeader.split('Bearer ')[1].trim(); // Sikrer ingen førende/tailende mellemrum
+  console.log('AuthMiddleware: Full Token:', token); // Logs the full JWT to check formatting and completeness
 
   try {
     // Verificer ID-token med Firebase Admin SDK
@@ -26,7 +25,7 @@ const authMiddleware = async (req, res, next) => {
     // Gå videre til næste middleware eller controller
     next();
   } catch (error) {
-    console.error('AuthMiddleware: Error verifying token:', error.message);
+    console.error('AuthMiddleware: Error verifying token:', error);
     return res.status(401).json({ message: 'Unauthorized', error: error.message });
   }
 };

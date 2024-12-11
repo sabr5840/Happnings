@@ -1,7 +1,6 @@
 const { db, admin } = require('../config/firebaseAdmin');
 const fetch = require('node-fetch');
 
-
 // Register a new user
 exports.registerUser = async (req, res) => {
   const { name, email, password } = req.body;
@@ -40,7 +39,6 @@ exports.loginUser = async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    // Firebase Authentication API kald for at logge ind
     const response = await fetch(
       `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${process.env.FIREBASE_API_KEY}`,
       {
@@ -56,7 +54,7 @@ exports.loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials', error: responseData });
     }
 
-    // Returnér kun idToken og userId
+    req.session.userId = responseData.localId; // Gemmer brugerens ID i sessionen
     res.json({
       message: 'Login successful',
       userId: responseData.localId,
@@ -67,8 +65,6 @@ exports.loginUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-
-
 
 // Logout a user
 exports.logoutUser = (req, res) => {
@@ -85,7 +81,6 @@ exports.logoutUser = (req, res) => {
     return res.status(400).json({ message: 'No session found' });
   }
 };
-
 
 // Get all users
 exports.getUsers = async (req, res) => {
@@ -142,26 +137,26 @@ exports.updateUser = async (req, res) => {
 
 // Delete a user
 exports.deleteUser = async (req, res) => {
-  const { id } = req.params; // ID på brugeren, der skal slettes
-  const requesterId = req.user.uid; // ID på den bruger, der sender forespørgslen (fra authMiddleware)
+  const { id } = req.params;
+  const sessionId = req.session.userId; // Assuming session stores userId
+  console.log("Session ID:", sessionId, "Request ID:", id); // Tilføjer logning for at se værdierne
+
+  if (sessionId !== id) {
+    return res.status(403).json({ message: 'You are not authorized to delete this account' });
+  }
 
   try {
-    // Tjek om requesterId matcher id
-    if (requesterId !== id) {
-      return res.status(403).json({ message: 'You are not authorized to delete this account' });
-    }
-
-    // Slet brugeren fra Firebase Authentication
     await admin.auth().deleteUser(id);
-
-    // Slet brugeren fra Firestore
     await db.collection('users').doc(id).delete();
-
-    res.json({ message: 'User deleted successfully' });
+    if (req.session) {
+      req.session.destroy(); // End the session after account deletion
+    }
+    res.status(200).json({ message: 'User deleted successfully' });
   } catch (error) {
     console.error('Delete User Error:', error);
     res.status(500).json({ error: error.message });
   }
 };
+
 
 
