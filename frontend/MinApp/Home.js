@@ -1,5 +1,5 @@
 import React from 'react';
-import { SafeAreaView, View, Text, StyleSheet, Image, TouchableOpacity } from 'react-native';
+import { SafeAreaView, View, Text, StyleSheet, Image, TouchableOpacity, FlatList } from 'react-native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faHeart, faUser, faMagnifyingGlass, faFilter, faSort, faCalendarDays } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
@@ -8,7 +8,57 @@ import { far } from '@fortawesome/free-regular-svg-icons';
 
 library.add(fas, far);
 
+const favorites = [
+  {
+    eventId: '1',
+    title: 'Color Run Marathon',
+    date: '13. Dec - 19:30',
+    distance: '15 km from you',
+    price: '250 DKK',
+    image: require('./assets/dummyPic.jpeg'),
+  },
+  {
+    eventId: '2',
+    title: 'Roskilde Festival',
+    date: '4. Aug - 10:00',
+    distance: '45 km from you',
+    price: '800 DKK',
+    image: require('./assets/concertDummyPic.jpg'),
+  },
+  {
+    eventId: '3',
+    title: 'HUI Banko',
+    date: '23. Aug - 19:00',
+    distance: '30 km from you',
+    price: '150 DKK',
+    image: require('./assets/dummypic4.avif'),
+  },
+  {
+    eventId: '4',
+    title: 'Tech Conference',
+    date: '22. Sept - 09:00',
+    distance: '60 km from you',
+    price: '1200 DKK',
+    image: require('./assets/dummypic3.jpg'),
+  },
+];
+
 const HomeScreen = ({ navigation }) => {
+
+  const renderEventCard = ({ item }) => (
+    <View style={styles.card}>
+      <Image source={item.image} style={styles.cardImage} />
+      <View style={styles.cardContent}>
+        <Text style={styles.cardTitle}>{item.title}</Text>
+        <View style={styles.cardDetails}>
+          <Text style={styles.cardDetailText}>📅 {item.date}</Text>
+          <Text style={styles.cardDetailText}>📍 {item.distance}</Text>
+          <Text style={styles.cardDetailText}>💰 {item.price}</Text>
+        </View>
+      </View>
+    </View>
+  );
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
@@ -39,10 +89,42 @@ const HomeScreen = ({ navigation }) => {
             <Text>Calendar</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => navigation.navigate('Login')} style={styles.logoutButton}>
-          <Text>Log Out</Text>
-        </TouchableOpacity>
       </View>
+
+
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Nearby events</Text>
+        <TouchableOpacity onPress={() => console.log('See more nearby events')}>
+          <Text style={styles.seeMore}>See more</Text>
+        </TouchableOpacity>
+       </View>
+       <FlatList
+        data={favorites.slice(0, 2)} // Kun de to første
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        keyExtractor={(item) => item.eventId}
+        renderItem={renderEventCard}
+          />
+        </View>
+
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Upcoming events</Text>
+          <TouchableOpacity onPress={() => console.log('See more Upcoming events')}>
+            <Text style={styles.seeMore}>See more</Text>
+          </TouchableOpacity>
+          </View>
+          <FlatList
+            data={favorites.slice(2)} // De sidste to
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            keyExtractor={(item) => item.eventId}
+            renderItem={renderEventCard}
+          />
+        </View>
+
     </SafeAreaView>
   );
 };
@@ -63,7 +145,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,  // Tilføjer padding på siderne for at give lidt luft
+    paddingHorizontal: 20,  
     width: '100%',
   },
   logo: {
@@ -72,7 +154,7 @@ const styles = StyleSheet.create({
     resizeMode: 'contain',
   },
   searchBar: {
-    marginBottom: 35,
+    marginBottom: 20,
     flexDirection: 'row',
     alignItems: 'center',
     padding: 10,
@@ -103,11 +185,68 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderColor: '#000',
     borderWidth: 1,
-    padding: 10,
-    borderRadius: 8
+    paddingVertical: 7, // Mindre højde
+    paddingHorizontal: 10, // Bevar bredde
+    borderRadius: 8,
+    marginTop: 7,
+    marginBottom: 7
+
   },
   logoutButton: {
     marginTop: 20,
+  },
+  section: {
+    marginBottom: 10,
+    paddingLeft: 30,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 7,
+    marginTop: 10
+  },
+  card: {
+    width: 300,
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    overflow: 'hidden',
+    marginRight: 15,
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  cardImage: {
+    width: '100%',
+    height: 120,
+    resizeMode: 'cover',
+  },
+  cardContent: {
+    padding: 10,
+  },
+  cardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 5,
+  },
+  cardDetails: {
+    marginTop: 5,
+  },
+  cardDetailText: {
+    fontSize: 12,
+    color: '#555',
+    marginBottom: 5
+  },
+  seeMore: {
+    fontSize: 14,
+    color: ' #D3D3D3',
+    marginRight: 35,
+    fontWeight: 'bold',
+    marginTop: 5
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingRight: 30, 
   },
 });
 

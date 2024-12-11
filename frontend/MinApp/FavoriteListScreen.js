@@ -120,9 +120,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
-    width: '95%', // Gør kortene mindre (90% af skærmbredden)
-    maxWidth: 350, // Begrænser bredden yderligere på større skærme
-    alignSelf: 'center', // Centrerer kortet i midten
+    width: '95%', 
+    maxWidth: 350, 
+    alignSelf: 'center', 
   },
   image: {
     width: '100%',
