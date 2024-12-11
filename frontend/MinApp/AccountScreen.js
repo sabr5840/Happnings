@@ -115,7 +115,9 @@ const AccountScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate('Home')}>
             <Image source={require('./assets/Logo_no_background.png')} style={styles.logo} />
           </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('FavoriteList')}>
           <FontAwesomeIcon icon={faHeart} style={styles.topIcon} size={20} />
+        </TouchableOpacity>
         </View>
         <Text style={styles.headerText}>Hej {updatedName || 'Bruger'}</Text>
         <Text style={styles.subHeader}>Your account</Text>
@@ -169,6 +171,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginVertical: 20,
     marginLeft: 17,
+    
   },
   subHeader: {
     fontSize: 18,

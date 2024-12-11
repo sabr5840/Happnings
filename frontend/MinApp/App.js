@@ -6,6 +6,7 @@ import SignUpScreen from './SignUpScreen';
 import HomeScreen from './Home'; 
 import AccountScreen from './AccountScreen'; 
 import UpdateUserScreen from './UpdateUserScreen';
+import FavoriteListScreen from './FavoriteListScreen'; 
 
 
 const Stack = createStackNavigator();
@@ -19,7 +20,7 @@ export default function App() {
         <Stack.Screen name="Home" component={HomeScreen} /> 
         <Stack.Screen name="Account" component={AccountScreen} /> 
         <Stack.Screen name="UpdateUser" component={UpdateUserScreen} />
-
+        <Stack.Screen name="FavoriteList" component={FavoriteListScreen} /> 
       </Stack.Navigator>
     </NavigationContainer>
   );

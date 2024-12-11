@@ -17,7 +17,9 @@ const HomeScreen = ({ navigation }) => {
           <FontAwesomeIcon icon={faUser} style={styles.topIcon} size={20} />
         </TouchableOpacity>
           <Image source={require('./assets/Logo_no_background.png')} style={styles.logo} />
+          <TouchableOpacity onPress={() => navigation.navigate('FavoriteList')}>
           <FontAwesomeIcon icon={faHeart} style={styles.topIcon} size={20} />
+        </TouchableOpacity>
         </View>
         <View style={styles.searchBar}>
           <FontAwesomeIcon icon="fa-solid fa-magnifying-glass" style={styles.icon} />
