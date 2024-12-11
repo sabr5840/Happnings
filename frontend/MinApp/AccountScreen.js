@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { SafeAreaView, View, Text, StyleSheet, TouchableOpacity, Image, Alert } from 'react-native';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Image,
+  Alert,
+  ActivityIndicator,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faUser, faLocationDot, faRightFromBracket, faTrash, faHeart } from '@fortawesome/free-solid-svg-icons';
@@ -8,18 +17,44 @@ import { API_URL } from '@env';
 const AccountScreen = ({ navigation }) => {
   const [userId, setUserId] = useState(null);
   const [authToken, setAuthToken] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [updatedName, setUpdatedName] = useState('');
 
   useEffect(() => {
-    // Fetch the user's ID and token from AsyncStorage
     const fetchUserData = async () => {
       const id = await AsyncStorage.getItem('userId');
       const token = await AsyncStorage.getItem('authToken');
       setUserId(id);
       setAuthToken(token);
+
+      if (id && token) {
+        fetchUserDetails(id, token);
+      }
     };
 
     fetchUserData();
   }, []);
+
+  const fetchUserDetails = async (id, token) => {
+    try {
+      setLoading(true);
+      const response = await fetch(`${API_URL}/api/users/${id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const json = await response.json();
+
+      if (response.ok) {
+        setUpdatedName(json.Name || '');
+      } else {
+        console.error('Failed to fetch user details:', json.message);
+      }
+    } catch (error) {
+      console.error('Error fetching user details:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleLogout = async () => {
     try {
@@ -41,11 +76,11 @@ const AccountScreen = ({ navigation }) => {
 
   const handleDeleteAccount = () => {
     Alert.alert(
-      "Confirm Account Deletion",
-      "Are you sure you want to permanently delete your account? This action cannot be undone.",
+      'Confirm Account Deletion',
+      'Are you sure you want to permanently delete your account? This action cannot be undone.',
       [
-        { text: "Cancel", onPress: () => console.log("Account deletion cancelled."), style: "cancel" },
-        { text: "Delete", onPress: performDeleteAccount, style: "destructive" }
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', onPress: performDeleteAccount, style: 'destructive' },
       ],
       { cancelable: false }
     );
@@ -57,7 +92,7 @@ const AccountScreen = ({ navigation }) => {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${authToken}`
+          Authorization: `Bearer ${authToken}`,
         },
       });
       if (response.ok) {
@@ -82,22 +117,25 @@ const AccountScreen = ({ navigation }) => {
           </TouchableOpacity>
           <FontAwesomeIcon icon={faHeart} style={styles.topIcon} size={20} />
         </View>
-        <Text style={styles.headerText}>Hej Sabrina</Text>
+        <Text style={styles.headerText}>Hej {updatedName || 'Bruger'}</Text>
         <Text style={styles.subHeader}>Your account</Text>
-        <TouchableOpacity style={styles.item} onPress={() => console.log('Personal Information')}>
-          <FontAwesomeIcon icon={faUser} size={20} style={styles.icon} />
+        <TouchableOpacity
+          style={styles.item}
+          onPress={() => navigation.navigate('UpdateUser')}
+        >
+          <FontAwesomeIcon icon={faUser} size={15} style={styles.icon} />
           <Text style={styles.itemText}>Personal information</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.item} onPress={() => console.log('Address')}>
-          <FontAwesomeIcon icon={faLocationDot} size={20} style={styles.icon} />
+          <FontAwesomeIcon icon={faLocationDot} size={15} style={styles.icon} />
           <Text style={styles.itemText}>Address</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.item} onPress={handleLogout}>
-          <FontAwesomeIcon icon={faRightFromBracket} size={20} style={styles.icon} />
+          <FontAwesomeIcon icon={faRightFromBracket} size={15} style={styles.icon} />
           <Text style={styles.itemText}>Log out</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.item} onPress={handleDeleteAccount}>
-          <FontAwesomeIcon icon={faTrash} size={20} style={styles.icon} />
+          <FontAwesomeIcon icon={faTrash} size={15} style={styles.icon} />
           <Text style={styles.itemText}>Delete account</Text>
         </TouchableOpacity>
       </View>
@@ -117,35 +155,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 10,
-    marginBottom: 20,
+    paddingHorizontal: 5,
+    marginBottom: -50,
+    marginTop: -80,
   },
   logo: {
-    width: 100,
-    height: 50,
+    width: 200,
+    height: 200,
     resizeMode: 'contain',
   },
   headerText: {
     fontSize: 24,
     fontWeight: 'bold',
     marginVertical: 20,
+    marginLeft: 17,
   },
   subHeader: {
     fontSize: 18,
     color: '#666',
     marginBottom: 20,
+    marginLeft: 17,
   },
   item: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 10,
+    paddingVertical: 15,
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
-    marginBottom: 10,
+    marginBottom: 18,
+    marginLeft: 17,
+    marginRight: 17,
   },
   icon: {
     marginRight: 10,
+    marginLeft: 10,
   },
   itemText: {
     fontSize: 16,

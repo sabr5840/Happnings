@@ -17,6 +17,19 @@ const SignUpScreen = ({ navigation }) => {
   const [password, setPassword] = useState('');
 
   const handleSignUp = async () => {
+    if (!name.trim()) {
+      Alert.alert('Validation Error', 'Please enter your full name.');
+      return;
+    }
+    if (!email.trim()) {
+      Alert.alert('Validation Error', 'Please enter a valid email address.');
+      return;
+    }
+    if (!password.trim() || password.length < 6) {
+      Alert.alert('Validation Error', 'Password must be at least 6 characters long.');
+      return;
+    }
+  
     try {
       const response = await fetch(`${API_URL}/api/users/register`, {
         method: 'POST',
@@ -26,18 +39,27 @@ const SignUpScreen = ({ navigation }) => {
         body: JSON.stringify({ name, email, password }),
       });
       const json = await response.json();
-      if (response.status === 201) {
+      console.log('Signup response:', json);  // Log the response for debugging
+  
+      if (response.ok) {
         console.log('Signup success:', json);
         Alert.alert('Signup Success', 'User registered successfully');
-        navigation.navigate('Home'); // Ændre destination til Home
+        navigation.navigate('Home'); // Navigate to Home upon success
       } else {
-        Alert.alert('Signup Failed', json.message);
+        // Check for specific error code in the JSON response
+        if (json.error && json.error.code === 'auth/email-already-in-use') {
+          Alert.alert('Signup Failed', json.error.message);
+        } else {
+          Alert.alert('Signup Failed', json.error ? json.error.message : 'Unexpected error occurred.');
+        }
       }
     } catch (error) {
       Alert.alert('Network Error', 'Unable to connect to server');
       console.error('Signup error:', error);
     }
   };
+  
+  
   
 
   return (
@@ -122,7 +144,7 @@ const styles = StyleSheet.create({
     color: '#808080',
     alignSelf: 'flex-start',
     marginLeft: 15,
-    marginTop: -30,
+    marginTop: -35,
   },
   inputBlock: {
     width: '90%',

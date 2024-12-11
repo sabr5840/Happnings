@@ -26,7 +26,11 @@ exports.registerUser = async (req, res) => {
     res.status(201).json({ message: 'User registered successfully', userId: userRecord.uid });
   } catch (error) {
     console.error('Registration Error:', error);
-    res.status(500).json({ error: error.message });
+    if (error.errorInfo && error.errorInfo.code === 'auth/email-already-in-use') {
+      return res.status(400).json({ error: { code: 'auth/email-already-in-use', message: 'The email address is already in use by another account.' } });
+    } else {
+      res.status(500).json({ error: error.message });
+    }
   }
 };
 
@@ -119,10 +123,19 @@ exports.updateUser = async (req, res) => {
   const { name, email, password } = req.body;
 
   try {
+    // Opdater Firebase Authentication bruger
+    if (email || password) {
+      const updatePayload = {};
+      if (email) updatePayload.email = email;
+      if (password) updatePayload.password = password;
+
+      await admin.auth().updateUser(id, updatePayload);
+    }
+
+    // Opdater Firestore database
     const updatedData = {
       ...(name && { Name: name }),
       ...(email && { Email: email }),
-      ...(password && { Password: password }),
     };
 
     const userRef = db.collection('users').doc(id);
@@ -134,6 +147,8 @@ exports.updateUser = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
+
+
 
 // Delete a user
 exports.deleteUser = async (req, res) => {
