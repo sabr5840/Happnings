@@ -104,21 +104,25 @@ const HomeScreen = ({ navigation }) => {
     const formattedTime = format(eventDate, 'HH:mm');
     const priceRange = item.sales?.public?.priceRanges?.[0];
     const price = priceRange ? `${priceRange.min} - ${priceRange.max} kr.` : 'Not available';
-
+  
     return (
-      <View style={styles.card}>
-        <Image source={{ uri: imageUrl }} style={styles.cardImage} />
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle}>{item.name}</Text>
-          <View style={styles.cardDetails}>
-            <Text style={styles.cardDetailText}>📅 {formattedDate} {formattedTime}</Text>
-            <Text style={styles.cardDetailText}>📍 {distanceInKm} km from you</Text>
-            <Text style={styles.cardDetailText}>💰 {price}</Text>
+      <TouchableOpacity
+        onPress={() => navigation.navigate('EventDetail', { eventId: item.id })}>
+        <View style={styles.card}>
+          <Image source={{ uri: imageUrl }} style={styles.cardImage} />
+          <View style={styles.cardContent}>
+            <Text style={styles.cardTitle}>{item.name}</Text>
+            <View style={styles.cardDetails}>
+              <Text style={styles.cardDetailText}>📅 {formattedDate} - {formattedTime}</Text>
+              <Text style={styles.cardDetailText}>📍 {distanceInKm} km from you</Text>
+              <Text style={styles.cardDetailText}>💰 {price}</Text>
+            </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
     );
   };
+  
 
   return (
     <SafeAreaView style={styles.safeArea}>

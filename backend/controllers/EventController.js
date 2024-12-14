@@ -1,9 +1,25 @@
-
-require('dotenv').config(); 
+require('dotenv').config();
 const axios = require('axios');
-const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 const NodeCache = require('node-cache');
 const myCache = new NodeCache({ stdTTL: 100, checkperiod: 120 });
+
+// Hjælpefunktion til at vente
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+// Funktion til at implementere eksponentiel tilbagegang ved API-grænseoverskridelser
+async function fetchWithExponentialBackoff(url, params, retries = 5, backoff = 300) {
+  try {
+      const response = await axios.get(url, { params });
+      return response.data;
+  } catch (error) {
+      if (retries > 0 && error.response && error.response.status === 429) {
+          await wait(backoff);
+          return fetchWithExponentialBackoff(url, params, retries - 1, backoff * 2);
+      } else {
+          throw error;
+      }
+  }
+}
 
 // Funktion til at hente events baseret på brugerens GPS-placering, radius og kategori
 const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startDateTime, endDateTime, category) => {
@@ -11,38 +27,32 @@ const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startD
   const cachedEvents = myCache.get(key);
 
   if (cachedEvents) {
-    console.log('Returning cached events');
-    return cachedEvents;
+      console.log('Returning cached events');
+      return cachedEvents;
   }
 
   const apiKey = process.env.TICKETMASTER_API_KEY;
   const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
-  const radiusInMiles = Math.floor(radius);
 
   const params = {
-    apikey: apiKey,
-    latlong: `${userLatitude},${userLongitude}`,
-    radius: radiusInMiles,
-    startDateTime,
-    endDateTime,
-    sort: 'date,asc',
-    classificationName: category
+      apikey: apiKey,
+      latlong: `${userLatitude},${userLongitude}`,
+      radius: Math.floor(radius),
+      startDateTime,
+      endDateTime,
+      sort: 'date,asc',
+      classificationName: category
   };
 
   try {
-    const response = await axios.get(apiUrl, { params });
-    if (response.data._embedded) {
-      const events = response.data._embedded.events;
-      myCache.set(key, events, 100);
+      const data = await fetchWithExponentialBackoff(apiUrl, params);
+      const events = data._embedded ? data._embedded.events : [];
+      myCache.set(key, events, 100);  // Cache the events
       console.log('Fetched events from API and cached');
       return events;
-    } else {
-      myCache.set(key, [], 100);
-      return [];
-    }
   } catch (error) {
-    console.error('Error fetching events from Ticketmaster:', error.message);
-    throw new Error('Failed to fetch events');
+      console.error('Error fetching events from Ticketmaster:', error.message);
+      throw new Error('Failed to fetch events');
   }
 };
 
@@ -91,49 +101,45 @@ const fetchUpcomingEvents = async (userLatitude, userLongitude) => {
 // Controller-funktion til at hente specifik event
 const getEventById = async (req, res) => {
   const { eventId } = req.params;
+  const apiKey = process.env.TICKETMASTER_API_KEY;
+  const apiUrl = `https://app.ticketmaster.com/discovery/v2/events/${eventId}.json`;
 
   try {
-    const apiKey = process.env.TICKETMASTER_API_KEY;
-    const apiUrl = `https://app.ticketmaster.com/discovery/v2/events/${eventId}.json`;
-
-    const response = await axios.get(apiUrl, { params: { apikey: apiKey } });
-
-    const venue = response.data._embedded.venues[0];
-    const venueAddress = venue ? {
-      address: venue.address.line1,
-      postalCode: venue.postalCode || 'N/A',
-      city: venue.city.name || 'N/A',
-      country: venue.country.name || 'N/A'
-    } : {};
-
-    const image = response.data.images.find(image => image.ratio === '16_9');
-    
-    // Use the image with the best resolution
-    const imageUrl = image ? image.url : null;
-    const imageWidth = image ? image.width : 640;  // Default width
-    const imageHeight = image ? image.height : 360; // Default height
-
-    const event = {
-      id: response.data.id,
-      name: response.data.name,
-      date: response.data.dates.start.localDate,
-      time: response.data.dates.start.localTime,
-      priceRange: response.data.priceRanges ? response.data.priceRanges[0].min : 'N/A',
-      imageUrl: imageUrl,
-      imageWidth: imageWidth,
-      imageHeight: imageHeight,  // Now includes the width and height
-      category: response.data.classifications[0]?.genre.name,
-      venue: venue ? venue.name : 'N/A',
-      venueAddress: venueAddress,
-      eventUrl: response.data.url
-    };
-
-    res.json(event);
+      const response = await axios.get(apiUrl, { params: { apikey: apiKey } });
+      if (response.status !== 200) {
+          return res.status(response.status).json({ message: `API call failed with status: ${response.status}` });
+      }
+      // Process response data to format as needed
+      res.json(formatEventDetails(response.data));
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ message: error.message || 'Error fetching event from Ticketmaster' });
+      console.error('Error fetching event detail:', error);
+      res.status(500).json({ message: 'Failed to fetch event details', error: error.message });
   }
 };
+
+// Helper to format event details if needed
+const formatEventDetails = (data) => {
+  const venue = data._embedded?.venues[0];
+  const image = data.images.find(image => image.ratio === '16_9');
+  return {
+      id: data.id,
+      name: data.name,
+      date: data.dates.start.localDate,
+      time: data.dates.start.localTime,
+      venue: venue ? venue.name : 'N/A',
+      venueAddress: {
+          address: venue?.address?.line1,
+          city: venue?.city?.name,
+          postalCode: venue?.postalCode,
+          country: venue?.country?.name
+      },
+      imageUrl: image ? image.url : null,
+      eventUrl: data.url
+  };
+};
+
+module.exports = { getEventById };
+
 
 const getEvents = async (req, res) => {
   const { latitude, longitude, eventDate } = req.query;
@@ -221,6 +227,7 @@ module.exports = {
   fetchSameDayEvents, 
   fetchUpcomingEvents, 
   getEventById, 
+  formatEventDetails,
   getEvents, 
   getCoordinatesFromAddress, 
   fetchEventsByCategory, 
