@@ -1,42 +1,53 @@
 
 require('dotenv').config(); 
 const axios = require('axios');
-
+const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+const NodeCache = require('node-cache');
+const myCache = new NodeCache({ stdTTL: 100, checkperiod: 120 });
 
 // Funktion til at hente events baseret på brugerens GPS-placering, radius og kategori
 const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startDateTime, endDateTime, category) => {
+  const key = `events_${userLatitude}_${userLongitude}_${radius}_${startDateTime}_${endDateTime}_${category}`;
+  const cachedEvents = myCache.get(key);
+
+  if (cachedEvents) {
+    console.log('Returning cached events');
+    return cachedEvents;
+  }
+
+  const apiKey = process.env.TICKETMASTER_API_KEY;
+  const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
+  const radiusInMiles = Math.floor(radius);
+
+  const params = {
+    apikey: apiKey,
+    latlong: `${userLatitude},${userLongitude}`,
+    radius: radiusInMiles,
+    startDateTime,
+    endDateTime,
+    sort: 'date,asc',
+    classificationName: category
+  };
+
   try {
-    const apiKey = process.env.TICKETMASTER_API_KEY;
-    const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
-    const radiusInMiles = Math.floor(radius);
-
-    if (radiusInMiles > 19999) {
-      throw new Error('Radius cannot exceed 19,999 miles');
-    }
-
-    const params = {
-      apikey: apiKey,
-      latlong: `${userLatitude},${userLongitude}`,
-      radius: radiusInMiles,
-      startDateTime,
-      endDateTime,
-    };
-
-    if (category) {
-      params.classifications = category;
-    }
-
     const response = await axios.get(apiUrl, { params });
-    return response.data._embedded ? response.data._embedded.events : [];
-  } catch (error) {
-    if (error.message.includes('Radius')) {
-      throw new Error('Radius cannot exceed 19,999 miles');
+    if (response.data._embedded) {
+      const events = response.data._embedded.events;
+      myCache.set(key, events, 100);
+      console.log('Fetched events from API and cached');
+      return events;
+    } else {
+      myCache.set(key, [], 100);
+      return [];
     }
-    console.error('Error fetching events from Ticketmaster:', error.response ? error.response.data : error.message);
-    throw new Error('Error fetching events from Ticketmaster');
+  } catch (error) {
+    console.error('Error fetching events from Ticketmaster:', error.message);
+    throw new Error('Failed to fetch events');
   }
 };
 
+module.exports = { fetchEventsByLocation };
+module.exports = fetchEventsByLocation;
 
 // Funktion til at hente events for samme dag med 12.42 miles radius
 const fetchSameDayEvents = async (userLatitude, userLongitude) => {
@@ -125,36 +136,22 @@ const getEventById = async (req, res) => {
 };
 
 const getEvents = async (req, res) => {
-  const { latitude, longitude, eventDate, location, startDate, endDate, category } = req.query;
+  const { latitude, longitude, eventDate } = req.query;
 
   try {
-    let events = [];
-    let userLatitude = latitude;
-    let userLongitude = longitude;
+      let events = [];
+      if (eventDate === 'sameDay') {
+          events = await fetchSameDayEvents(latitude, longitude);
+      } else if (eventDate === 'upcoming') {
+          events = await fetchUpcomingEvents(latitude, longitude);
+      }
 
-    if (location) {
-      const { lat, lng } = await getCoordinatesFromAddress(location);
-      userLatitude = lat;
-      userLongitude = lng;
-    }
-
-    if (startDate && endDate) {
-      events = await fetchEventsByLocation(userLatitude, userLongitude, 24.85, startDate, endDate, category);
-    } else if (eventDate === 'sameDay') {
-      events = await fetchSameDayEvents(userLatitude, userLongitude);
-    } else if (eventDate === 'upcoming') {
-      events = await fetchUpcomingEvents(userLatitude, userLongitude);
-    } else {
-      events = await fetchSameDayEvents(userLatitude, userLongitude);
-    }
-
-    res.status(200).json(events); // Tilføjet statuskald
+      res.status(200).json(events); // Returner korrekt formaterede events
   } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ message: error.message || 'Error fetching events from Ticketmaster' });
+      console.error('Error:', error);
+      res.status(500).json({ message: error.message || 'Error fetching events from Ticketmaster' });
   }
 };
-
 
 const getCoordinatesFromAddress = async (address) => {
   try {
@@ -180,7 +177,6 @@ const getCoordinatesFromAddress = async (address) => {
     throw new Error('Address not found'); // Matcher testen
   }
 };
-
 
 // Funktion til at hente events baseret på hovedkategori
 const fetchEventsByCategory = async (userLatitude, userLongitude, radius, startDateTime, endDateTime, mainCategory) => {

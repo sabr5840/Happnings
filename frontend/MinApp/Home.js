@@ -1,146 +1,226 @@
-import React from 'react';
-import { SafeAreaView, View, Text, StyleSheet, Image, TouchableOpacity, FlatList } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import {
+  SafeAreaView,
+  View,
+  Text,
+  Image,
+  TouchableOpacity,
+  FlatList,
+  Alert,
+  Button,
+  StyleSheet
+} from 'react-native';
+import * as Location from 'expo-location';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faHeart, faUser, faMagnifyingGlass, faFilter, faSort, faCalendarDays } from '@fortawesome/free-solid-svg-icons';
 import { library } from '@fortawesome/fontawesome-svg-core';
 import { fas } from '@fortawesome/free-solid-svg-icons';
-import { far } from '@fortawesome/free-regular-svg-icons';
+import { API_URL } from '@env';
+import { format } from 'date-fns';
 
-library.add(fas, far);
 
-const favorites = [
-  {
-    eventId: '1',
-    title: 'Color Run Marathon',
-    date: '13. Dec - 19:30',
-    distance: '15 km from you',
-    price: '250 DKK',
-    image: require('./assets/dummyPic.jpeg'),
-  },
-  {
-    eventId: '2',
-    title: 'Roskilde Festival',
-    date: '4. Aug - 10:00',
-    distance: '45 km from you',
-    price: '800 DKK',
-    image: require('./assets/concertDummyPic.jpg'),
-  },
-  {
-    eventId: '3',
-    title: 'HUI Banko',
-    date: '23. Aug - 19:00',
-    distance: '30 km from you',
-    price: '150 DKK',
-    image: require('./assets/dummypic4.avif'),
-  },
-  {
-    eventId: '4',
-    title: 'Tech Conference',
-    date: '22. Sept - 09:00',
-    distance: '60 km from you',
-    price: '1200 DKK',
-    image: require('./assets/dummypic3.jpg'),
-  },
-];
+library.add(fas);
 
 const HomeScreen = ({ navigation }) => {
+  const [location, setLocation] = useState(null);
+  const [sameDayEvents, setSameDayEvents] = useState([]);
+  const [upcomingEvents, setUpcomingEvents] = useState([]);
 
-  const renderEventCard = ({ item }) => (
-    <View style={styles.card}>
-      <Image source={item.image} style={styles.cardImage} />
-      <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.title}</Text>
-        <View style={styles.cardDetails}>
-          <Text style={styles.cardDetailText}>📅 {item.date}</Text>
-          <Text style={styles.cardDetailText}>📍 {item.distance}</Text>
-          <Text style={styles.cardDetailText}>💰 {item.price}</Text>
+  useEffect(() => {
+    const getLocationAsync = async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Location Permission', 'Permission to access location was denied');
+        return;
+      }
+
+      let locationSubscription = await Location.watchPositionAsync({
+        accuracy: Location.Accuracy.High,
+        timeInterval: 5000,
+        distanceInterval: 1,
+      }, (newLocation) => {
+        console.log('New location:', newLocation);
+        setLocation(newLocation);
+      });
+
+      return () => locationSubscription.remove();
+    };
+
+    getLocationAsync();
+  }, []);
+
+  useEffect(() => {
+    if (location?.coords) {
+      fetchEvents('sameDay');
+      fetchEvents('upcoming');
+    }
+  }, [location]);
+
+  const fetchEvents = async (eventDate) => {
+    if (!location?.coords) {
+      console.log("Location data is not available yet.");
+      return;
+    }
+
+    const { latitude, longitude } = location.coords;
+    const queryParams = `latitude=${latitude}&longitude=${longitude}&eventDate=${eventDate}`;
+    const url = `${API_URL}/api/events?${queryParams}`;
+
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        console.error('HTTP Response Not OK:', response.status, response.statusText);
+        console.error('Response headers:', response.headers);
+        console.error('Response body:', data);
+        throw new Error(`HTTP error! status: ${response.status} - ${data.message}`);
+      }
+
+      if (eventDate === 'sameDay') {
+        setSameDayEvents(data);
+      } else if (eventDate === 'upcoming') {
+        setUpcomingEvents(data);
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error);
+      Alert.alert('Fetch Error', `Unable to fetch events: ${error.message}`);
+    }
+  };
+
+  const renderEventCard = ({ item }) => {
+    const imageUrl = item.images?.[0]?.url ?? 'default_image_url_here';
+    const distanceInKm = ((item.distance ?? 0) * 1.60934).toFixed(2);
+    const eventDateTime = item.dates?.start?.dateTime;
+    const eventDate = eventDateTime ? new Date(eventDateTime) : new Date();
+    const formattedDate = format(eventDate, 'dd. MMM yyyy');
+    const formattedTime = format(eventDate, 'HH:mm');
+    const priceRange = item.sales?.public?.priceRanges?.[0];
+    const price = priceRange ? `${priceRange.min} - ${priceRange.max} kr.` : 'Not available';
+
+    return (
+      <View style={styles.card}>
+        <Image source={{ uri: imageUrl }} style={styles.cardImage} />
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle}>{item.name}</Text>
+          <View style={styles.cardDetails}>
+            <Text style={styles.cardDetailText}>📅 {formattedDate} {formattedTime}</Text>
+            <Text style={styles.cardDetailText}>📍 {distanceInKm} km from you</Text>
+            <Text style={styles.cardDetailText}>💰 {price}</Text>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <View style={styles.container}>
         <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.navigate('Account')}>
-          <FontAwesomeIcon icon={faUser} style={styles.topIcon} size={20} />
-        </TouchableOpacity>
+          <TouchableOpacity onPress={() => navigation.navigate('Account')}>
+            <FontAwesomeIcon icon={faUser} size={20} />
+          </TouchableOpacity>
           <Image source={require('./assets/Logo_no_background.png')} style={styles.logo} />
           <TouchableOpacity onPress={() => navigation.navigate('FavoriteList')}>
-          <FontAwesomeIcon icon={faHeart} style={styles.topIcon} size={20} />
-        </TouchableOpacity>
+            <FontAwesomeIcon icon={faHeart} size={20} />
+          </TouchableOpacity>
         </View>
+
         <View style={styles.searchBar}>
-          <FontAwesomeIcon icon="fa-solid fa-magnifying-glass" style={styles.icon} />
+          <FontAwesomeIcon icon={faMagnifyingGlass} />
           <Text style={styles.searchText}>Search for event, location etc...</Text>
         </View>
+
         <View style={styles.iconTray}>
           <TouchableOpacity style={styles.button}>
-            <FontAwesomeIcon icon={faFilter} style={styles.icon} />
-            <Text>Filters</Text>
+            <FontAwesomeIcon icon={faFilter} size={16} />
+            <Text style={styles.buttonText}>Filters</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.button}>
-            <FontAwesomeIcon icon={faSort} style={styles.icon} />
-            <Text>Sort by</Text>
+            <FontAwesomeIcon icon={faSort} size={16} />
+            <Text style={styles.buttonText}>Sort by</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.button}>
-            <FontAwesomeIcon icon={faCalendarDays} style={styles.icon} />
-            <Text>Calendar</Text>
+          <Image source={require('./assets/distanceIcon.png')} style={styles.disIon} />
+            <Text style={styles.buttonText}>Distance</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.button}>
+            <FontAwesomeIcon icon={faCalendarDays} size={16} />
+            <Text style={styles.buttonText}>Calendar</Text>
           </TouchableOpacity>
         </View>
-      </View>
-
-
-      <View style={styles.section}>
-        <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Nearby events</Text>
-        <TouchableOpacity onPress={() => console.log('See more nearby events')}>
-          <Text style={styles.seeMore}>See more</Text>
-        </TouchableOpacity>
-       </View>
-       <FlatList
-        data={favorites.slice(0, 2)} // Kun de to første
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        keyExtractor={(item) => item.eventId}
-        renderItem={renderEventCard}
-          />
-        </View>
-
 
         <View style={styles.section}>
-          <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Nearby events today</Text>
+          {sameDayEvents.length === 0 ? (
+            <Text style={styles.noEventsText}>No events found for today.</Text>
+          ) : (
+            <FlatList
+              data={sameDayEvents}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              renderItem={renderEventCard}
+            />
+          )}
+
           <Text style={styles.sectionTitle}>Upcoming events</Text>
-          <TouchableOpacity onPress={() => console.log('See more Upcoming events')}>
-            <Text style={styles.seeMore}>See more</Text>
-          </TouchableOpacity>
-          </View>
-          <FlatList
-            data={favorites.slice(2)} // De sidste to
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            keyExtractor={(item) => item.eventId}
-            renderItem={renderEventCard}
-          />
+          {upcomingEvents.length === 0 ? (
+            <Text style={styles.noEventsText}>No upcoming events found.</Text>
+          ) : (
+            <FlatList
+              data={upcomingEvents}
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              keyExtractor={(item) => item.id}
+              renderItem={renderEventCard}
+            />
+          )}
         </View>
 
+        <Text style={styles.text}>Your current location:</Text>
+        <Text style={styles.text}>
+          Latitude: {location?.coords ? location.coords.latitude : 'Loading...'} |
+          Longitude: {location?.coords ? location.coords.longitude : 'Loading...'}
+        </Text>
+        <Button
+          title="Update location"
+          onPress={async () => {
+            let currentLocation = await Location.getCurrentPositionAsync({});
+            setLocation(currentLocation);
+            fetchEvents('sameDay');
+            fetchEvents('upcoming');
+          }}
+        />
+      </View>
     </SafeAreaView>
   );
 };
+
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f8f8f8',
   },
+  buttonText: {
+    marginLeft: 3,
+  },
   container: {
     flex: 1,
     alignItems: 'center',
     backgroundColor: '#f8f8f8',
   },
+  
   header: {
-    marginTop: -60,
+    marginTop: 240,
     marginBottom: -50,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -152,6 +232,10 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     resizeMode: 'contain',
+  },
+  disIon: {
+    width: 19,
+    height: 19,
   },
   searchBar: {
     marginBottom: 20,
@@ -180,16 +264,22 @@ const styles = StyleSheet.create({
     justifyContent: 'space-evenly',
     width: '100%',
   },
+  noEventsText: {
+    fontSize: 14,
+    color: '#aaa',
+    marginTop: 1,
+  },
+  
   button: {
     flexDirection: 'row',
     alignItems: 'center',
     borderColor: '#000',
     borderWidth: 1,
-    paddingVertical: 7, // Mindre højde
-    paddingHorizontal: 10, // Bevar bredde
+    paddingVertical: 7, 
+    paddingHorizontal: 10, 
     borderRadius: 8,
     marginTop: 7,
-    marginBottom: 7
+    marginBottom: 12
 
   },
   logoutButton: {
@@ -207,6 +297,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: 300,
+    height: 250,
     backgroundColor: '#fff',
     borderRadius: 8,
     overflow: 'hidden',
@@ -247,6 +338,15 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingRight: 30, 
+  },
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+},
+  text: {
+    fontSize: 16,
+    marginBottom: 10,
   },
 });
 

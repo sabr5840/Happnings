@@ -7,11 +7,22 @@ const categoryRoutes = require('./routes/categoryRoutes'); // Importer categoryR
 const favoriteRoutes = require('./routes/favoriteRoutes'); // Importer eventRoutes
 const notificationRoutes = require('./routes/notificationRoutes'); // Importer notificationRoutes
 const { sendPushNotification } = require('./utils/pushNotificationHelper');
+const rateLimit = require('express-rate-limit');
 
 require('dotenv').config(); // Tilføj miljøvariabler fra .env-filen
 
 
 const app = express();
+
+// Rate Limiter Configuration
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 100 // Limit each IP to 100 requests per windowMs
+});
+
+// Apply the rate limiting middleware to all requests
+app.use(apiLimiter);
+
 
 // Middleware
 app.use(express.json()); // Parser JSON
@@ -71,6 +82,7 @@ app.get('/test-push', async (req, res) => {
     res.status(500).json({ message: 'Failed to send push notification', error: error.message });
   }
 });
+
 
 // Start server
 const PORT = process.env.PORT || 3000;

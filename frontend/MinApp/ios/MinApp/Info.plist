@@ -49,5 +49,10 @@
 	</array>
 	<key>UIViewControllerBasedStatusBarAppearance</key>
 	<false/>
+
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>The app uses your location to find events near you.</string>
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>The app uses your location to find events near you.</string>
 </dict>
 </plist>
