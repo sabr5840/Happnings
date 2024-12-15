@@ -91,7 +91,7 @@ exports.addNotification = async (req, res) => {
   try {
     // Validate eventId and reminderIds
     if (!eventId || !Array.isArray(reminderIds) || reminderIds.length === 0) {
-      return res.status(400).json({ message: 'Invalid input data: eventId or reminderIds are missing or invalid' });
+      return res.status(400).json({ message: 'Invalid input data: eventId or reminderIds are missing or invalid!' });
     }
 
     // Check if all reminderIds are valid

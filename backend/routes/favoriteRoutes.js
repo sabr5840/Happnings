@@ -1,19 +1,16 @@
-// routes/notificationRoutes.js
 const express = require('express');
 const router = express.Router();
-const NotificationController = require('../controllers/NotificationController');
-const authMiddleware = require('../middleware/authMiddleware'); // Assuming you have an auth middleware
+const authMiddleware = require('../middleware/authMiddleware');
+const FavoriteController = require('../controllers/FavoriteController');
 
-// Define the route for getting all notifications for a user
-router.get('/', authMiddleware, NotificationController.getNotifications);
 
-// Define the route for adding a notification
-router.post('/', authMiddleware, NotificationController.addNotification);
+// Rute til at tilføje event til favorites
+router.post('/', authMiddleware, FavoriteController.addToFavorite);
 
-// Define the route for deleting a notification
-router.delete('/:id', authMiddleware, NotificationController.deleteNotification);
+// Rute til at hente alle favorit events
+router.get('/', authMiddleware, FavoriteController.getFavorite);
 
-// Define the route for updating a notification
-router.put('/:id', authMiddleware, NotificationController.updateNotification);
+// Rute til at fjerne event fra favorites
+router.delete('/:favoriteId', authMiddleware, FavoriteController.removeFromFavorite);
 
 module.exports = router;

@@ -1,56 +1,73 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { SafeAreaView, View, Text, FlatList, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faHeart, faUser } from '@fortawesome/free-solid-svg-icons';
+import { API_URL } from '@env';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const FavoriteListScreen = ({ navigation }) => {
-  // Dummy data
-  const favorites = [
-    {
-      eventId: '1',
-      title: 'Color Run Marathon',
-      date: '13. Dec - 19:30',
-      distance: '15 km from you',
-      price: '250 DKK',
-      image: require('./assets/dummyPic.jpeg'),
-    },
-    {
-      eventId: '2',
-      title: 'Roskilde Festival',
-      date: '4. Aug - 10:00',
-      distance: '45 km from you',
-      price: '800 DKK',
-      image: require('./assets/concertDummyPic.jpg'),
-    },
-  ];
+  const [favorites, setFavorites] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  const renderFavoriteItem = ({ item }) => (
-    <View style={styles.card}>
-      <Image source={item.image} style={styles.image} />
-      <TouchableOpacity style={styles.heartIcon}>
-        <FontAwesomeIcon icon={faHeart} size={20} color="black" />
-      </TouchableOpacity>
-      <View style={styles.infoContainer}>
-        <Text style={styles.title}>{item.title}</Text>
-        <View style={styles.detailRow}>
-          <Text style={styles.icon}>📅</Text>
-          <Text style={styles.detail}>{item.date}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.icon}>📍</Text>
-          <Text style={styles.detail}>{item.distance}</Text>
-        </View>
-        <View style={styles.detailRow}>
-          <Text style={styles.icon}>💰</Text>
-          <Text style={styles.detail}>{item.price}</Text>
+  useEffect(() => {
+    const fetchFavorites = async () => {
+      try {
+        const token = await AsyncStorage.getItem('authToken');
+        if (!token) throw new Error('User token is missing');
+
+        const response = await fetch(`${API_URL}/api/favorites`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || 'Failed to fetch favorites');
+        setFavorites(data);
+      } catch (error) {
+        console.error('Error fetching favorites:', error.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchFavorites();
+  }, []);
+
+  const renderFavoriteItem = ({ item }) => {
+    return (
+      <View style={styles.card}>
+        <Image source={{ uri: item.image }} style={styles.image} />
+        <TouchableOpacity style={styles.heartIcon}>
+          <FontAwesomeIcon icon={faHeart} size={20} color="red" />
+        </TouchableOpacity>
+        <View style={styles.infoContainer}>
+          <Text style={styles.title}>{item.title}</Text>
+          <View style={styles.detailRow}>
+            <Text style={styles.icon}>📅</Text>
+            <Text style={styles.detail}>{item.date}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.icon}>🕗</Text>
+            <Text style={styles.detail}>{item.time}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.icon}>💰</Text>
+            <Text style={styles.detail}>{item.price}</Text>
+          </View>
+          <View style={styles.detailRow}>
+            <Text style={styles.icon}>📍</Text>
+            <Text style={styles.detail}>{item.venueAddress}</Text>
+          </View>
         </View>
       </View>
-    </View>
-  );
+    );
+  };
+  
+  
+
+  if (loading) return <Text style={styles.loadingText}>Loading favorites...</Text>;
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.navigate('Account')}>
           <FontAwesomeIcon icon={faUser} style={styles.topIcon} size={20} />
@@ -63,10 +80,8 @@ const FavoriteListScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Title */}
       <Text style={styles.heading}>Favorite Events Saved</Text>
 
-      {/* Favorites List */}
       <FlatList
         data={favorites}
         keyExtractor={(item) => item.eventId}
@@ -81,9 +96,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#fff',
-  },
-  listContainer: {
-    padding: 10,
   },
   header: {
     flexDirection: 'row',
@@ -107,7 +119,10 @@ const styles = StyleSheet.create({
     marginVertical: 20,
     textAlign: 'center',
     marginTop: -30,
-    marginBottom: 10
+    marginBottom: 10,
+  },
+  listContainer: {
+    padding: 10,
   },
   card: {
     backgroundColor: '#fff',
@@ -120,9 +135,9 @@ const styles = StyleSheet.create({
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 5,
-    width: '95%', 
-    maxWidth: 350, 
-    alignSelf: 'center', 
+    width: '95%',
+    maxWidth: 350,
+    alignSelf: 'center',
   },
   image: {
     width: '100%',
@@ -158,6 +173,12 @@ const styles = StyleSheet.create({
   detail: {
     fontSize: 14,
     color: '#555',
+  },
+  loadingText: {
+    textAlign: 'center',
+    marginTop: 20,
+    fontSize: 18,
+    color: '#999',
   },
 });
 

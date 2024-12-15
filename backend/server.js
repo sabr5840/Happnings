@@ -11,6 +11,11 @@ const rateLimit = require('express-rate-limit');
 
 require('dotenv').config(); // Tilføj miljøvariabler fra .env-filen
 
+console.log('Firebase API Key:', process.env.FIREBASE_API_KEY);
+console.log('Firebase Auth Domain:', process.env.FIREBASE_AUTH_DOMAIN);
+console.log('Ticketmaster API Key:', process.env.TICKETMASTER_API_KEY);
+console.log('Geocoding API Key:', process.env.API_KEY_GEOCODING);
+
 
 const app = express();
 

@@ -5,6 +5,7 @@ import { format, parseISO } from 'date-fns';
 import { enUS } from 'date-fns/locale';
 import { FontAwesome } from '@expo/vector-icons';
 import { API_URL } from '@env';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const EventDetailScreen = ({ navigation, route }) => {
     const { eventId } = route.params;
@@ -49,8 +50,46 @@ const EventDetailScreen = ({ navigation, route }) => {
     if (loading) return <Text>Loading...</Text>;
     if (error) return <Text>Error: {error}</Text>;
 
-    const toggleLike = () => setLiked(!liked);
-
+    const toggleLike = async () => {
+        try {
+            console.log('Toggling like for event:', eventId);
+            if (!eventId) {
+                throw new Error('eventId is missing');
+            }
+    
+            const userToken = await AsyncStorage.getItem('authToken');
+            if (!userToken) {
+                throw new Error('User token is missing');
+            }
+    
+            const method = liked ? 'DELETE' : 'POST';
+            const body = method === 'POST' ? JSON.stringify({ eventId }) : null;
+            const url = liked ? `${API_URL}/api/favorites/${eventId}` : `${API_URL}/api/favorites`;
+    
+            console.log('Request URL:', url); // Log the URL to ensure it's correct
+            console.log('Request Body:', body); // Log the body to ensure it's correct
+    
+            const response = await fetch(url, {
+                method,
+                headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `Bearer ${userToken}`,
+                },
+                body,
+            });
+    
+            const result = await response.json();
+            if (!response.ok) {
+                throw new Error(result.message || 'Failed to update favorite');
+            }
+    
+            setLiked(!liked);
+        } catch (error) {
+            console.error('Error toggling favorite:', error.message);
+        }
+    };
+    
+    
     return (
         <View style={styles.container}>
             {event && (
@@ -75,7 +114,7 @@ const EventDetailScreen = ({ navigation, route }) => {
                     <Text style={styles.details}>📅 {format(parseISO(event.date), "eeee 'the' do 'of' MMMM", { locale: enUS })}</Text>
                     <Text style={styles.details}>🕗 {format(parseISO(event.date + 'T' + event.time), 'HH:mm')}</Text>
                     <Text style={styles.details}>💰 {event.priceRange || "no price available"}</Text>
-                    <Text style={styles.details}>📍 {`${event.venueAddress.address}, ${event.venueAddress.city} ${event.venueAddress.postalCode}`}</Text>
+                    <Text style={styles.details}>📍 {`${event.venueAddress.address}, ${event.venueAddress.postalCode} ${event.venueAddress.city}`}</Text>
                     <TouchableOpacity onPress={() => Linking.openURL(event.eventUrl)} style={styles.ticketButton}>
                         <Text style={styles.ticketLink}>Buy Tickets Here</Text>
                     </TouchableOpacity>

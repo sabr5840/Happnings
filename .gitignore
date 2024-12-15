@@ -1,6 +1,5 @@
 # Ignore Firebase private key
-backend/config/happnings-d76a6-firebase-adminsdk-rb4zp-cf9db3895f.json
-
+backend/config/happnings-d76a6-firebase-adminsdk-rb4zp-808b20abc7.json
 
 # Ignore node_modules
 node_modules/

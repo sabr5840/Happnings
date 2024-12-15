@@ -2,7 +2,7 @@ require('dotenv').config(); // Indlæs miljøvariabler fra .env
 
 const admin = require('firebase-admin');
 const { initializeApp } = require('firebase/app');
-const serviceAccount = require('./happnings-d76a6-firebase-adminsdk-rb4zp-cf9db3895f.json');
+const serviceAccount = require('./happnings-d76a6-firebase-adminsdk-rb4zp-808b20abc7.json');
 
 admin.initializeApp({
   credential: admin.credential.cert(serviceAccount),
