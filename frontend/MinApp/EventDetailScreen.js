@@ -10,12 +10,13 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const EventDetailScreen = ({ navigation, route }) => {
     const { eventId } = route.params;
     const [event, setEvent] = useState(null);
-    const [liked, setLiked] = useState(false);  
+    const [liked, setLiked] = useState(false);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
     const [modalVisible, setModalVisible] = useState(false);
     const scaleAnim = useRef(new Animated.Value(0)).current;
 
+    // Hent event-detaljer og tjek liked-status
     useEffect(() => {
         const fetchEventDetail = async () => {
             try {
@@ -23,6 +24,7 @@ const EventDetailScreen = ({ navigation, route }) => {
                 const data = await response.json();
                 if (!response.ok) throw new Error(data.message);
                 setEvent(data);
+                await checkIfLiked(); // Tjek liked-status
             } catch (error) {
                 setError(error.message);
             } finally {
@@ -33,42 +35,39 @@ const EventDetailScreen = ({ navigation, route }) => {
         fetchEventDetail();
     }, [eventId]);
 
-    useEffect(() => {
-        if (modalVisible) {
-            // Trigger the animation when modal is made visible
-            Animated.timing(scaleAnim, {
-                toValue: 1, // Final scale
-                duration: 300, // Animation duration
-                useNativeDriver: true,
-            }).start();
-        } else {
-            // Reset the animation when modal is hidden
-            scaleAnim.setValue(0);
+    // Tjek om event allerede er liket
+    const checkIfLiked = async () => {
+        try {
+            const token = await AsyncStorage.getItem('authToken');
+            if (!token) return;
+
+            const response = await fetch(`${API_URL}/api/favorites`, {
+                headers: { Authorization: `Bearer ${token}` },
+            });
+
+            const favorites = await response.json();
+            if (response.ok) {
+                const isLiked = favorites.some((fav) => fav.eventId === eventId);
+                setLiked(isLiked);
+            }
+        } catch (error) {
+            console.error('Error checking favorite status:', error.message);
         }
-    }, [modalVisible]);
+    };
 
-    if (loading) return <Text>Loading...</Text>;
-    if (error) return <Text>Error: {error}</Text>;
-
+    // Håndter toggle af like-status
     const toggleLike = async () => {
         try {
-            console.log('Toggling like for event:', eventId);
-            if (!eventId) {
-                throw new Error('eventId is missing');
-            }
-    
             const userToken = await AsyncStorage.getItem('authToken');
-            if (!userToken) {
-                throw new Error('User token is missing');
-            }
-    
+            if (!userToken) throw new Error('User token is missing');
+
             const method = liked ? 'DELETE' : 'POST';
-            const body = method === 'POST' ? JSON.stringify({ eventId }) : null;
-            const url = liked ? `${API_URL}/api/favorites/${eventId}` : `${API_URL}/api/favorites`;
-    
-            console.log('Request URL:', url); // Log the URL to ensure it's correct
-            console.log('Request Body:', body); // Log the body to ensure it's correct
-    
+            const url = liked
+                ? `${API_URL}/api/favorites/${eventId}`
+                : `${API_URL}/api/favorites`;
+
+            const body = liked ? null : JSON.stringify({ eventId });
+
             const response = await fetch(url, {
                 method,
                 headers: {
@@ -77,47 +76,83 @@ const EventDetailScreen = ({ navigation, route }) => {
                 },
                 body,
             });
-    
+
             const result = await response.json();
-            if (!response.ok) {
-                throw new Error(result.message || 'Failed to update favorite');
-            }
-    
+            if (!response.ok) throw new Error(result.message || 'Failed to update favorite');
+
             setLiked(!liked);
         } catch (error) {
             console.error('Error toggling favorite:', error.message);
         }
     };
-    
-    
+
+    // Åbn/luk animation for modal
+    useEffect(() => {
+        if (modalVisible) {
+            Animated.timing(scaleAnim, {
+                toValue: 1,
+                duration: 300,
+                useNativeDriver: true,
+            }).start();
+        } else {
+            scaleAnim.setValue(0);
+        }
+    }, [modalVisible]);
+
+    if (loading) return <Text>Loading...</Text>;
+    if (error) return <Text>Error: {error}</Text>;
+
     return (
         <View style={styles.container}>
             {event && (
                 <>
                     <Image source={{ uri: event.imageUrl }} style={styles.image} />
                     <View style={styles.overlayIcons}>
-                        <TouchableOpacity onPress={() => navigation.goBack()} style={[styles.iconCircle, styles.arrowIcon]}>
+                        <TouchableOpacity
+                            onPress={() => navigation.goBack()}
+                            style={[styles.iconCircle, styles.arrowIcon]}
+                        >
                             <FontAwesome name="arrow-left" size={20} color="black" />
                         </TouchableOpacity>
-                        <TouchableOpacity onPress={toggleLike} style={[styles.iconCircle, styles.likeIcon]}>
-                            <FontAwesome name={liked ? "heart" : "heart-o"} size={20} color="red" />
+                        <TouchableOpacity
+                            onPress={toggleLike}
+                            style={[styles.iconCircle, styles.likeIcon]}
+                        >
+                            <FontAwesome
+                                name={liked ? "heart" : "heart-o"}
+                                size={20}
+                                color="red"
+                            />
                         </TouchableOpacity>
                     </View>
                     <View style={styles.detailsContainer}>
-                    <View style={styles.header}>
-                    <Text style={styles.name}>{event.name}</Text>
-                    <TouchableOpacity onPress={() => setModalVisible(true)} style={styles.bellIcon}>
-                        <FontAwesome name="bell" size={20} color="black" />
-                    </TouchableOpacity>
-                    </View>
-
-                    <Text style={styles.details}>📅 {format(parseISO(event.date), "eeee 'the' do 'of' MMMM", { locale: enUS })}</Text>
-                    <Text style={styles.details}>🕗 {format(parseISO(event.date + 'T' + event.time), 'HH:mm')}</Text>
-                    <Text style={styles.details}>💰 {event.priceRange || "no price available"}</Text>
-                    <Text style={styles.details}>📍 {`${event.venueAddress.address}, ${event.venueAddress.postalCode} ${event.venueAddress.city}`}</Text>
-                    <TouchableOpacity onPress={() => Linking.openURL(event.eventUrl)} style={styles.ticketButton}>
-                        <Text style={styles.ticketLink}>Buy Tickets Here</Text>
-                    </TouchableOpacity>
+                        <View style={styles.header}>
+                            <Text style={styles.name}>{event.name}</Text>
+                            <TouchableOpacity
+                                onPress={() => setModalVisible(true)}
+                                style={styles.bellIcon}
+                            >
+                                <FontAwesome name="bell" size={20} color="black" />
+                            </TouchableOpacity>
+                        </View>
+                        <Text style={styles.details}>
+                            📅 {format(parseISO(event.date), "eeee 'the' do 'of' MMMM", { locale: enUS })}
+                        </Text>
+                        <Text style={styles.details}>
+                            🕗 {format(parseISO(event.date + 'T' + event.time), 'HH:mm')}
+                        </Text>
+                        <Text style={styles.details}>
+                            💰 {event.priceRange || "no price available"}
+                        </Text>
+                        <Text style={styles.details}>
+                            📍 {`${event.venueAddress.address}, ${event.venueAddress.postalCode} ${event.venueAddress.city}`}
+                        </Text>
+                        <TouchableOpacity
+                            onPress={() => Linking.openURL(event.eventUrl)}
+                            style={styles.ticketButton}
+                        >
+                            <Text style={styles.ticketLink}>Buy Tickets Here</Text>
+                        </TouchableOpacity>
                     </View>
 
                     <Modal
@@ -130,25 +165,26 @@ const EventDetailScreen = ({ navigation, route }) => {
                             activeOpacity={1}
                             onPressOut={() => setModalVisible(false)}
                         >
-
                             <Animated.View
                                 style={[
                                     styles.modalView,
-                                    { transform: [{ scale: scaleAnim }] }, // Apply scaling animation
+                                    { transform: [{ scale: scaleAnim }] },
                                 ]}
-                                >
-                                {["1 hour before", "1 day before", "2 days before", "1 week before"].map((reminder, index) => (
-                                    <TouchableOpacity
-                                        key={index}
-                                        style={styles.reminderButton}
-                                        onPress={() => {
-                                            console.log(`Selected reminder: ${reminder}`);
-                                            setModalVisible(false);
-                                        }}
-                                    >
-                                        <Text style={styles.reminderText}>{reminder}</Text>
-                                    </TouchableOpacity>
-                                ))}
+                            >
+                                {["1 hour before", "1 day before", "2 days before", "1 week before"].map(
+                                    (reminder, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={styles.reminderButton}
+                                            onPress={() => {
+                                                console.log(`Selected reminder: ${reminder}`);
+                                                setModalVisible(false);
+                                            }}
+                                        >
+                                            <Text style={styles.reminderText}>{reminder}</Text>
+                                        </TouchableOpacity>
+                                    )
+                                )}
                             </Animated.View>
                         </TouchableOpacity>
                     </Modal>
@@ -157,7 +193,6 @@ const EventDetailScreen = ({ navigation, route }) => {
         </View>
     );
 };
-
 
 const styles = StyleSheet.create({
     container: {

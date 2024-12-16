@@ -151,33 +151,28 @@ exports.getFavorite = async (req, res) => {
 
 exports.removeFromFavorite = async (req, res) => {
   const userId = req.user.uid; // Hent bruger-ID fra decoded token
-  const { favoriteId } = req.params;
+  const { favoriteId } = req.params; // favoriteId er egentlig eventId her
 
   try {
-    // Log favoriteId og userId
-    console.log('Favorite ID from request:', favoriteId);
+    console.log('Event ID from request:', favoriteId);
     console.log('User ID from token:', userId);
 
-    // Hent dokumentet fra Firestore
-    const favoriteDoc = await db.collection('favorites').doc(favoriteId).get();
+    // Find dokumentet med eventId og userId
+    const snapshot = await db.collection('favorites')
+      .where('userId', '==', userId)
+      .where('eventId', '==', favoriteId)
+      .get();
 
-    // Log data fra dokumentet
-    console.log('Firestore Document Data:', favoriteDoc.exists ? favoriteDoc.data() : 'Document not found');
-
-    if (!favoriteDoc.exists) {
+    if (snapshot.empty) {
+      console.log('No matching favorite found');
       return res.status(404).json({ message: 'Favorite not found' });
     }
 
-    // Tjek om userId matcher
-    if (favoriteDoc.data().userId !== userId) {
-      console.log('Unauthorized deletion attempt. Document userId:', favoriteDoc.data().userId);
-      return res.status(403).json({ message: 'Unauthorized to delete this favorite' });
-    }
+    // Slet det første matchende dokument
+    const docId = snapshot.docs[0].id;
+    await db.collection('favorites').doc(docId).delete();
 
-    // Slet dokumentet
-    await db.collection('favorites').doc(favoriteId).delete();
-
-    console.log('Favorite successfully deleted:', favoriteId);
+    console.log('Favorite successfully deleted:', docId);
     return res.status(200).json({ message: 'Event removed from favorite' });
   } catch (error) {
     console.error('Error in removeFromFavorite:', error.message);
