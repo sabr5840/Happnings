@@ -23,12 +23,16 @@ const fetchCategories = async () => {
       throw new Error('Invalid API response format');
     }
 
-    const topCategories = response.data._embedded.classifications.filter(
-      (classification) => !classification.subClassifications
-    );
+    // Filtrer og returnér kun "segment" navne
+    const topCategories = response.data._embedded.classifications
+      .filter((classification) => classification.segment) // Sikrer segment findes
+      .map((classification) => ({
+        id: classification.segment.id,
+        name: classification.segment.name,
+      }));
 
     cachedCategories = topCategories;
-    cacheTimestamp = now; // Opdater cache-timestamp
+    cacheTimestamp = now;
     console.log(`Fetched ${topCategories.length} top-level categories`);
     return topCategories;
   } catch (error) {

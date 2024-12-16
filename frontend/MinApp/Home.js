@@ -142,7 +142,10 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.iconTray}>
-          <TouchableOpacity style={styles.button}>
+        <TouchableOpacity
+            style={styles.button}
+            onPress={() => navigation.navigate('Category')}
+          >
             <FontAwesomeIcon icon={faFilter} size={16} />
             <Text style={styles.buttonText}>Filters</Text>
           </TouchableOpacity>

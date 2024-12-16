@@ -8,6 +8,8 @@ import AccountScreen from './AccountScreen';
 import UpdateUserScreen from './UpdateUserScreen';
 import FavoriteListScreen from './FavoriteListScreen';
 import EventDetailScreen from './EventDetailScreen';  
+import CategoryScreen from './CategoryScreen.js';
+
 
 const Stack = createStackNavigator();
 
@@ -22,6 +24,8 @@ export default function App() {
         <Stack.Screen name="UpdateUser" component={UpdateUserScreen} />
         <Stack.Screen name="FavoriteList" component={FavoriteListScreen} />
         <Stack.Screen name="EventDetail" component={EventDetailScreen} />  
+        <Stack.Screen name="Category" component={CategoryScreen} options={{ title: 'Categories' }} />
+
       </Stack.Navigator>
     </NavigationContainer>
   );
