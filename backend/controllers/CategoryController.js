@@ -23,9 +23,9 @@ const fetchCategories = async () => {
       throw new Error('Invalid API response format');
     }
 
-    // Filtrer og returnér kun "segment" navne
+    // Filtrer kategorier med gyldigt segment.name
     const topCategories = response.data._embedded.classifications
-      .filter((classification) => classification.segment) // Sikrer segment findes
+      .filter((classification) => classification.segment && classification.segment.name) // Sikrer gyldig data
       .map((classification) => ({
         id: classification.segment.id,
         name: classification.segment.name,
@@ -40,6 +40,7 @@ const fetchCategories = async () => {
     throw new Error('Error fetching categories from Ticketmaster');
   }
 };
+
 
 // Controller til at hente kategorier
 const getCategories = async (req, res) => {

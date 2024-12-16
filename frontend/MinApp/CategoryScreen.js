@@ -4,12 +4,31 @@ import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faUser, faHeart } from '@fortawesome/free-solid-svg-icons';
 import { API_URL } from '@env';
 
+// Global cache til kategorier
+let cachedCategories = null;
+
 const CategoryScreen = ({ navigation }) => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  // Ikoner til kategorier
+  const categoryIcons = {
+    Miscellaneous: '🎭 🎡 🍽️ 🎲',
+    Sports: '🏅 ⚽ 🚴 🤼',
+    Music: '🎵 🎸 🎤 🎧',
+    'Arts & Theatre': '🎨 🩰 🎪 🎭',
+    Film: '🎥 🍿 🌌 😂',
+  };
+
   useEffect(() => {
-    fetchCategories();
+    // Tjek om kategorier allerede er cached
+    if (cachedCategories) {
+      console.log('Bruger cached kategorier');
+      setCategories(cachedCategories);
+      setLoading(false);
+    } else {
+      fetchCategories();
+    }
   }, []);
 
   const fetchCategories = async () => {
@@ -21,7 +40,13 @@ const CategoryScreen = ({ navigation }) => {
         throw new Error('Failed to fetch categories');
       }
 
-      setCategories(data);
+      // Filtrer "Undefined" og flyt "Miscellaneous" til sidst
+      const filteredCategories = data
+        .filter((category) => category.name !== 'Undefined') // Fjern "Undefined"
+        .sort((a, b) => (a.name === 'Miscellaneous' ? 1 : b.name === 'Miscellaneous' ? -1 : 0)); // Flyt "Miscellaneous"
+
+      cachedCategories = filteredCategories; // Gem kategorier i global cache
+      setCategories(filteredCategories);
     } catch (error) {
       console.error('Error fetching categories:', error.message);
     } finally {
@@ -29,11 +54,16 @@ const CategoryScreen = ({ navigation }) => {
     }
   };
 
-  const renderCategory = ({ item }) => (
-    <TouchableOpacity style={styles.categoryCard}>
-      <Text style={styles.categoryText}>{item.name}</Text>
-    </TouchableOpacity>
-  );
+  const renderCategory = ({ item }) => {
+    const icon = categoryIcons[item.name] || ''; // Tilføj emojis, fallback til tom string
+    return (
+      <TouchableOpacity style={styles.categoryCard}>
+        <Text style={styles.categoryText}>
+          {item.name} {icon}
+        </Text>
+      </TouchableOpacity>
+    );
+  };
 
   if (loading) {
     return (
@@ -51,7 +81,7 @@ const CategoryScreen = ({ navigation }) => {
           <FontAwesomeIcon icon={faUser} size={20} color="#000" />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('Home')}>
-        <Image source={require('./assets/Logo_no_background.png')} style={styles.logo} />
+          <Image source={require('./assets/Logo_no_background.png')} style={styles.logo} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('FavoriteList')}>
           <FontAwesomeIcon icon={faHeart} size={20} color="#000" />
@@ -73,9 +103,6 @@ const CategoryScreen = ({ navigation }) => {
         <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
           <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.resetButton} onPress={() => console.log('Reset categories')}>
-          <Text style={styles.buttonText}>Reset</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.applyButton} onPress={() => console.log('Apply categories')}>
           <Text style={styles.buttonText}>Apply</Text>
         </TouchableOpacity>
@@ -83,6 +110,8 @@ const CategoryScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
+
+
 
 const styles = StyleSheet.create({
   safeArea: {
@@ -134,18 +163,10 @@ const styles = StyleSheet.create({
   },
   cancelButton: {
     flex: 1,
-    backgroundColor: '#ddd',
+    backgroundColor: '#cccccc',
     paddingVertical: 12,
     alignItems: 'center',
     marginRight: 5,
-    borderRadius: 8,
-  },
-  resetButton: {
-    flex: 1,
-    backgroundColor: 'black',
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginHorizontal: 5,
     borderRadius: 8,
   },
   applyButton: {
