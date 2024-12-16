@@ -17,15 +17,10 @@ const getDayWithSuffix = (day) => {
 
 // Add an event to favorite
 exports.addToFavorite = async (req, res) => {
-  console.log('--- Incoming Request ---');
-  console.log('Request Headers:', req.headers);
-  console.log('Request Body:', req.body);
 
   const userId = req.user?.uid;  // Extract user ID from the authenticated token
   const { eventId } = req.body;  // Extract only eventId from the request body
 
-  console.log('Decoded user ID:', userId);
-  console.log('Event ID from Body:', eventId);
 
   // Validate userId to ensure it is correct and present
   if (!userId || typeof userId !== 'string') {

@@ -6,7 +6,6 @@ import { API_URL } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Animated } from 'react-native';
 
-
 const FavoriteListScreen = ({ navigation }) => {
   const [favorites, setFavorites] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -126,10 +125,18 @@ const FavoriteListScreen = ({ navigation }) => {
       <Text style={styles.heading}>Favorite Events Saved</Text>
 
       <FlatList
-        data={favorites}
-        keyExtractor={(item) => item.eventId}
-        renderItem={renderFavoriteItem}
-      />
+      data={favorites}
+      keyExtractor={(item) => item.eventId}
+      renderItem={renderFavoriteItem}
+      ListEmptyComponent={
+        !loading && (
+          <View style={{ alignItems: 'center', marginTop: 20 }}>
+            <Text style={{ fontSize: 18, color: '#999' }}>No event saved yet</Text>
+          </View>
+        )
+      }
+    />
+
     </SafeAreaView>
   );
 };

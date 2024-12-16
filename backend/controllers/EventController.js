@@ -27,7 +27,6 @@ const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startD
   const cachedEvents = myCache.get(key);
 
   if (cachedEvents) {
-      console.log('Returning cached events');
       return cachedEvents;
   }
 
@@ -48,7 +47,6 @@ const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startD
       const data = await fetchWithExponentialBackoff(apiUrl, params);
       const events = data._embedded ? data._embedded.events : [];
       myCache.set(key, events, 100);  // Cache the events
-      console.log('Fetched events from API and cached');
       return events;
   } catch (error) {
       console.error('Error fetching events from Ticketmaster:', error.message);
@@ -173,7 +171,6 @@ const getCoordinatesFromAddress = async (address) => {
 
     if (response.data.results.length > 0) {
       const location = response.data.results[0].geometry.location;
-      console.log('Geocoded coordinates:', location);
       return { lat: location.lat, lng: location.lng };
     } else {
       throw new Error('Address not found'); // Rettet fejlmeddelelse

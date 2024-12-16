@@ -128,10 +128,6 @@ const AccountScreen = ({ navigation }) => {
           <FontAwesomeIcon icon={faUser} size={15} style={styles.icon} />
           <Text style={styles.itemText}>Personal information</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.item} onPress={() => console.log('Address')}>
-          <FontAwesomeIcon icon={faLocationDot} size={15} style={styles.icon} />
-          <Text style={styles.itemText}>Address</Text>
-        </TouchableOpacity>
         <TouchableOpacity style={styles.item} onPress={handleLogout}>
           <FontAwesomeIcon icon={faRightFromBracket} size={15} style={styles.icon} />
           <Text style={styles.itemText}>Log out</Text>

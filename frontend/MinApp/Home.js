@@ -39,7 +39,6 @@ const HomeScreen = ({ navigation }) => {
         timeInterval: 5000,
         distanceInterval: 1,
       }, (newLocation) => {
-        console.log('New location:', newLocation);
         setLocation(newLocation);
       });
 
