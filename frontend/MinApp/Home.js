@@ -9,7 +9,8 @@ import {
   Alert,
   Button,
   StyleSheet,
-  TextInput
+  TextInput, 
+  Modal
 } from 'react-native';
 import * as Location from 'expo-location';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
@@ -20,6 +21,9 @@ import { API_URL } from '@env';
 import { format } from 'date-fns';
 import { Picker } from '@react-native-picker/picker'; 
 import Slider from '@react-native-community/slider';
+import { Calendar } from 'react-native-calendars';
+import { BlurView } from '@react-native-community/blur';
+
 
 library.add(fas);
 
@@ -28,10 +32,12 @@ const HomeScreen = ({ navigation, route }) => {
   const [sameDayEvents, setSameDayEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
-  const [customDistanceKm, setCustomDistanceKm] = useState(''); // String for TextInput
-  const [currentRadiusKm, setCurrentRadiusKm] = useState('');  // Den radius brugeren har valgt og sat
-  const [distance, setDistance] = useState(40); // Starter med en standardværdi på 34 km
+  const [customDistanceKm, setCustomDistanceKm] = useState(''); 
+  const [currentRadiusKm, setCurrentRadiusKm] = useState('');  
+  const [distance, setDistance] = useState(40); 
   const [showSlider, setShowSlider] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
+
 
 
   // Opdater din 'Distance' knap event handler
@@ -170,6 +176,29 @@ const HomeScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
+
+    {/* Modal for kalenderen */}
+    <Modal
+            visible={showCalendarModal}
+            transparent={true}
+            animationType="fade"
+            onRequestClose={() => setShowCalendarModal(false)}
+          >
+            <View style={styles.modalBackground}>
+              <View style={styles.modalContent}>
+                <Calendar 
+                  onDayPress={(day) => {
+                    console.log('Selected day', day);
+                    // Her kan du f.eks. gemme den valgte dato i state 
+                    // og hente events baseret på den valgte dato.
+                  }}
+                />
+                <Button title="Close" onPress={() => setShowCalendarModal(false)} />
+              </View>
+            </View>
+        </Modal>
+
+
       <View style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => navigation.navigate('Account')}>
@@ -224,7 +253,7 @@ const HomeScreen = ({ navigation, route }) => {
             <Text style={styles.buttonText}>Distance</Text>
           </TouchableOpacity>
   
-          <TouchableOpacity style={styles.button} onPress={() => { /* navigate to calendar or another feature */ }}>
+          <TouchableOpacity style={styles.button} onPress={() => setShowCalendarModal(true)}>
             <FontAwesomeIcon icon={faCalendarDays} size={16} />
             <Text style={styles.buttonText}>Calendar</Text>
           </TouchableOpacity>
@@ -282,8 +311,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f8f8',
   },
   slider: {
-    width: 200, // Justér efter behov
-    height: 40, // Justér efter behov
+    width: 200, 
+    height: 40, 
     alignSelf: 'center',
   },
   buttonText: {
@@ -294,7 +323,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f8f8f8',
   },
-  
+    // Modal styling
+    modalBackground: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.9)', 
+      justifyContent: 'center',
+      alignItems: 'center',
+    },
+    modalContent: {
+      width: '80%', 
+      backgroundColor: '#fff',
+      borderRadius: 8,
+      padding: 20
+    },  
   header: {
     marginTop: 240,
     marginBottom: -50,
