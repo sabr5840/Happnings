@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { SafeAreaView, View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Image } from 'react-native';
+import { SafeAreaView, View, Text, FlatList, TouchableOpacity, ActivityIndicator, StyleSheet, Image, Alert } from 'react-native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faUser, faHeart } from '@fortawesome/free-solid-svg-icons';
 import { API_URL } from '@env';
@@ -7,11 +7,14 @@ import { API_URL } from '@env';
 // Global cache til kategorier
 let cachedCategories = null;
 
-const CategoryScreen = ({ navigation }) => {
+const CategoryScreen = ({ navigation, route }) => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  
+  // Her henter vi evt. allerede valgte kategorier fra route.params (hvis Home sendte dem)
+  const initiallySelected = route.params?.selectedCategories || [];
+  const [selectedCategories, setSelectedCategories] = useState(initiallySelected);
 
-  // Ikoner til kategorier
   const categoryIcons = {
     Miscellaneous: '🎭 🎡 🍽️ 🎲',
     Sports: '🏅 ⚽ 🚴 🤼',
@@ -21,9 +24,7 @@ const CategoryScreen = ({ navigation }) => {
   };
 
   useEffect(() => {
-    // Tjek om kategorier allerede er cached
     if (cachedCategories) {
-      console.log('Bruger cached kategorier');
       setCategories(cachedCategories);
       setLoading(false);
     } else {
@@ -40,12 +41,11 @@ const CategoryScreen = ({ navigation }) => {
         throw new Error('Failed to fetch categories');
       }
 
-      // Filtrer "Undefined" og flyt "Miscellaneous" til sidst
       const filteredCategories = data
-        .filter((category) => category.name !== 'Undefined') // Fjern "Undefined"
-        .sort((a, b) => (a.name === 'Miscellaneous' ? 1 : b.name === 'Miscellaneous' ? -1 : 0)); // Flyt "Miscellaneous"
+        .filter((category) => category.name !== 'Undefined')
+        .sort((a, b) => (a.name === 'Miscellaneous' ? 1 : b.name === 'Miscellaneous' ? -1 : 0));
 
-      cachedCategories = filteredCategories; // Gem kategorier i global cache
+      cachedCategories = filteredCategories;
       setCategories(filteredCategories);
     } catch (error) {
       console.error('Error fetching categories:', error.message);
@@ -54,10 +54,25 @@ const CategoryScreen = ({ navigation }) => {
     }
   };
 
+  const toggleCategory = (categoryName) => {
+    // Hvis kategorien allerede er valgt, fjern den. Ellers tilføj den.
+    setSelectedCategories(prevSelected => {
+      if (prevSelected.includes(categoryName)) {
+        return prevSelected.filter(c => c !== categoryName);
+      } else {
+        return [...prevSelected, categoryName];
+      }
+    });
+  };
+
   const renderCategory = ({ item }) => {
-    const icon = categoryIcons[item.name] || ''; // Tilføj emojis, fallback til tom string
+    const icon = categoryIcons[item.name] || '';
+    const isSelected = selectedCategories.includes(item.name);
     return (
-      <TouchableOpacity style={styles.categoryCard}>
+      <TouchableOpacity 
+        style={[styles.categoryCard, isSelected && styles.categoryCardSelected]}
+        onPress={() => toggleCategory(item.name)}
+      >
         <Text style={styles.categoryText}>
           {item.name} {icon}
         </Text>
@@ -73,9 +88,22 @@ const CategoryScreen = ({ navigation }) => {
     );
   }
 
+  const handleApply = () => {
+    if (selectedCategories.length === 0) {
+      Alert.alert(
+        "No Categories Selected",
+        "Please select at least one category before applying.",
+        [{ text: "OK", style: "default" }]
+      );
+      return;
+    }
+
+    // Naviger tilbage til Home og send de valgte kategorier med
+    navigation.navigate('Home', { selectedCategories });
+  };
+
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Header Section */}
       <View style={styles.header}>
         <TouchableOpacity onPress={() => navigation.navigate('Account')}>
           <FontAwesomeIcon icon={faUser} size={20} color="#000" />
@@ -88,7 +116,6 @@ const CategoryScreen = ({ navigation }) => {
         </TouchableOpacity>
       </View>
 
-      {/* Categories Section */}
       <View style={styles.section}>
         <Text style={styles.title}>Categories</Text>
         <FlatList
@@ -98,19 +125,17 @@ const CategoryScreen = ({ navigation }) => {
         />
       </View>
 
-      {/* Bottom Buttons */}
       <View style={styles.buttonContainer}>
         <TouchableOpacity style={styles.cancelButton} onPress={() => navigation.goBack()}>
           <Text style={styles.buttonText}>Cancel</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={styles.applyButton} onPress={() => console.log('Apply categories')}>
+        <TouchableOpacity style={styles.applyButton} onPress={handleApply}>
           <Text style={styles.buttonText}>Apply</Text>
         </TouchableOpacity>
       </View>
     </SafeAreaView>
   );
 };
-
 
 
 const styles = StyleSheet.create({
@@ -176,6 +201,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginLeft: 5,
     borderRadius: 8,
+  },
+  categoryCardSelected: {
+    backgroundColor: '#b0cbe8', // Grønlig baggrund for at indikere valgt
+    borderColor: '#b0cbe8',
   },
   buttonText: {
     color: '#fff',

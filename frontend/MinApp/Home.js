@@ -18,13 +18,20 @@ import { fas } from '@fortawesome/free-solid-svg-icons';
 import { API_URL } from '@env';
 import { format } from 'date-fns';
 
-
 library.add(fas);
 
-const HomeScreen = ({ navigation }) => {
+const HomeScreen = ({ navigation, route }) => {
   const [location, setLocation] = useState(null);
   const [sameDayEvents, setSameDayEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
+  const [selectedCategories, setSelectedCategories] = useState([]);
+
+  useEffect(() => {
+    // Hvis route.params.selectedCategories er defineret, opdater state
+    if (route.params?.selectedCategories) {
+      setSelectedCategories(route.params.selectedCategories);
+    }
+  }, [route.params?.selectedCategories]);
 
   useEffect(() => {
     const getLocationAsync = async () => {
@@ -49,11 +56,12 @@ const HomeScreen = ({ navigation }) => {
   }, []);
 
   useEffect(() => {
+    // Når location eller valgte kategorier ændres, hent events igen
     if (location?.coords) {
       fetchEvents('sameDay');
       fetchEvents('upcoming');
     }
-  }, [location]);
+  }, [location, selectedCategories]);
 
   const fetchEvents = async (eventDate) => {
     if (!location?.coords) {
@@ -62,7 +70,14 @@ const HomeScreen = ({ navigation }) => {
     }
 
     const { latitude, longitude } = location.coords;
-    const queryParams = `latitude=${latitude}&longitude=${longitude}&eventDate=${eventDate}`;
+    let queryParams = `latitude=${latitude}&longitude=${longitude}&eventDate=${eventDate}`;
+
+    // Hvis der er valgte kategorier, tilføj dem til query params
+    if (selectedCategories.length > 0) {
+      const categoryString = selectedCategories.join(',');
+      queryParams += `&categories=${encodeURIComponent(categoryString)}`;
+    }
+
     const url = `${API_URL}/api/events?${queryParams}`;
 
     try {
@@ -142,9 +157,9 @@ const HomeScreen = ({ navigation }) => {
         </View>
 
         <View style={styles.iconTray}>
-        <TouchableOpacity
+          <TouchableOpacity
             style={styles.button}
-            onPress={() => navigation.navigate('Category')}
+            onPress={() => navigation.navigate('Category', { selectedCategories })}
           >
             <FontAwesomeIcon icon={faFilter} size={16} />
             <Text style={styles.buttonText}>Filters</Text>
@@ -154,7 +169,7 @@ const HomeScreen = ({ navigation }) => {
             <Text style={styles.buttonText}>Sort by</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.button}>
-          <Image source={require('./assets/distanceIcon.png')} style={styles.disIon} />
+            <Image source={require('./assets/distanceIcon.png')} style={styles.disIon} />
             <Text style={styles.buttonText}>Distance</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.button}>
@@ -209,7 +224,6 @@ const HomeScreen = ({ navigation }) => {
     </SafeAreaView>
   );
 };
-
 
 const styles = StyleSheet.create({
   safeArea: {
