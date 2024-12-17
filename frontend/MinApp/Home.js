@@ -33,18 +33,25 @@ const HomeScreen = ({ navigation, route }) => {
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
   const [customDistanceKm, setCustomDistanceKm] = useState(''); 
-  const [currentRadiusKm, setCurrentRadiusKm] = useState('');  
+  const [currentRadiusKm, setCurrentRadiusKm] = useState(40);  
   const [distance, setDistance] = useState(40); 
   const [showSlider, setShowSlider] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
-
-
+  const [customEvents, setCustomEvents] = useState([]);
+  const [selectedDate, setSelectedDate] = useState(null); // Dato bruges til at hente events efter 'Apply'
+  const [chosenDate, setChosenDate] = useState(null);    // Midlertidig dato valgt i kalenderen
 
   // Opdater din 'Distance' knap event handler
   const toggleSliderVisibility = () => {
     setShowSlider(!showSlider);
   };
 
+  // Tilføj funktion til at nulstille afstanden
+  const resetDistance = () => {
+    setDistance(40);  // Reset til standardværdi
+    setCurrentRadiusKm(40); // Opdater også den aktuelle radius
+  };
+  
   useEffect(() => {
     // Hvis route.params.selectedCategories er defineret, opdater state
     if (route.params?.selectedCategories) {
@@ -75,12 +82,17 @@ const HomeScreen = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => {
-    // Når location eller valgte kategorier ændres eller radius ændres, hent events igen
     if (location?.coords) {
-      fetchEvents('sameDay');
-      fetchEvents('upcoming');
+      if (!selectedDate) {
+        // Ingen specifik dato: hent sameDay og upcoming
+        fetchEvents('sameDay');
+        fetchEvents('upcoming');
+      } else {
+        // Hvis specifik dato valgt
+        fetchEvents(selectedDate); 
+      }
     }
-  }, [location, selectedCategories, currentRadiusKm]);
+  }, [location, selectedCategories, currentRadiusKm, selectedDate]);
 
   const fetchEvents = async (eventDate) => {
     if (!location?.coords) {
@@ -91,18 +103,15 @@ const HomeScreen = ({ navigation, route }) => {
     const { latitude, longitude } = location.coords;
     let queryParams = `latitude=${latitude}&longitude=${longitude}&eventDate=${eventDate}`;
 
-    // Hvis der er valgte kategorier, tilføj dem til query params
     if (selectedCategories.length > 0) {
       const categoryString = selectedCategories.join(',');
       queryParams += `&categories=${encodeURIComponent(categoryString)}`;
     }
 
-    // Hvis brugeren har valgt en radius, brug den. 
-    // Konverter km til miles. Hvis tomt, brug standard fra backend.
     if (currentRadiusKm) {
       const km = parseFloat(currentRadiusKm);
       if (!isNaN(km)) {
-        const miles = km / 1.60934; // konverter km til miles
+        const miles = km / 1.60934; 
         queryParams += `&radius=${Math.floor(miles)}`;
       }
     }
@@ -122,8 +131,6 @@ const HomeScreen = ({ navigation, route }) => {
 
       if (!response.ok) {
         console.error('HTTP Response Not OK:', response.status, response.statusText);
-        console.error('Response headers:', response.headers);
-        console.error('Response body:', data);
         throw new Error(`HTTP error! status: ${response.status} - ${data.message}`);
       }
 
@@ -131,6 +138,9 @@ const HomeScreen = ({ navigation, route }) => {
         setSameDayEvents(data);
       } else if (eventDate === 'upcoming') {
         setUpcomingEvents(data);
+      } else {
+        // Hvis eventDate er en valgt dato i YYYY-MM-DD format
+        setCustomEvents(data);
       }
     } catch (error) {
       console.error('Error fetching events:', error);
@@ -176,28 +186,42 @@ const HomeScreen = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-
-    {/* Modal for kalenderen */}
-    <Modal
-            visible={showCalendarModal}
-            transparent={true}
-            animationType="fade"
-            onRequestClose={() => setShowCalendarModal(false)}
-          >
-            <View style={styles.modalBackground}>
-              <View style={styles.modalContent}>
-                <Calendar 
-                  onDayPress={(day) => {
-                    console.log('Selected day', day);
-                    // Her kan du f.eks. gemme den valgte dato i state 
-                    // og hente events baseret på den valgte dato.
-                  }}
-                />
-                <Button title="Close" onPress={() => setShowCalendarModal(false)} />
-              </View>
+  
+     <Modal
+        visible={showCalendarModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowCalendarModal(false)}
+      >
+        <View style={styles.modalBackground}>
+          <View style={styles.modalContent}>
+            <Calendar 
+              onDayPress={(day) => {
+                setChosenDate(day.dateString); 
+              }}
+              // Fremhæv valgt dato hvis chosenDate er sat
+              markedDates={chosenDate ? { 
+                [chosenDate]: {selected: true, selectedColor: 'blue'} 
+              } : {}}
+            />
+            <View style={styles.modalButtonContainer}>
+              <TouchableOpacity style={styles.applyButton} onPress={() => {
+                setShowCalendarModal(false); 
+                if (chosenDate) {
+                  setSelectedDate(chosenDate);  
+                  // fetchEvents(selectedDate) vil køre via useEffect
+                }
+              }}>
+                <Text style={styles.applyButtonText}>Apply</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.closeButton} onPress={() => setShowCalendarModal(false)}>
+                <Text style={styles.applyButtonText}>Close</Text>
+              </TouchableOpacity>
             </View>
-        </Modal>
-
+          </View>
+        </View>
+      </Modal>
+  
 
       <View style={styles.container}>
         <View style={styles.header}>
@@ -220,10 +244,13 @@ const HomeScreen = ({ navigation, route }) => {
               maximumTrackTintColor="#000000"
               step={1}
               value={distance}
-              onValueChange={(value) => setDistance(value)}
+              onValueChange={setDistance}
               onSlidingComplete={(value) => setCurrentRadiusKm(value.toString())}
             />
-            <Text style={{ textAlign: 'center', marginBottom: 10 }}> {distance} km</Text>
+            <View style={{ flexDirection: 'center', justifyContent: 'space-between', marginHorizontal: 10}}>
+              <Text>{distance} km</Text>
+              <Button title="Reset" onPress={resetDistance} />
+            </View>          
           </>
         ) : (
           <View style={styles.searchBar}>
@@ -259,49 +286,73 @@ const HomeScreen = ({ navigation, route }) => {
           </TouchableOpacity>
         </View>
   
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Nearby events today</Text>
-          {sameDayEvents.length === 0 ? (
-            <Text style={styles.noEventsText}>No events found for today.</Text>
-          ) : (
-            <FlatList
-              data={sameDayEvents}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderEventCard}
-            />
-          )}
+        {selectedDate && (
+          <>
+            <Text style={styles.sectionTitle}>Events on {selectedDate}</Text>
+            {customEvents.length === 0 ? (
+              <Text style={styles.noEventsText}>No events found for {selectedDate}.</Text>
+            ) : (
+              <FlatList
+                data={customEvents}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={renderEventCard}
+              />
+            )}
+          </>
+        )}
   
-          <Text style={styles.sectionTitle}>Upcoming events</Text>
-          {upcomingEvents.length === 0 ? (
-            <Text style={styles.noEventsText}>No upcoming events found.</Text>
-          ) : (
-            <FlatList
-              data={upcomingEvents}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id.toString()}
-              renderItem={renderEventCard}
-            />
-          )}
-        </View>
+        {!selectedDate && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Nearby events today</Text>
+            {sameDayEvents.length === 0 ? (
+              <Text style={styles.noEventsText}>No events found for today.</Text>
+            ) : (
+              <FlatList
+                data={sameDayEvents}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={renderEventCard}
+              />
+            )}
+  
+            <Text style={styles.sectionTitle}>Upcoming events</Text>
+            {upcomingEvents.length === 0 ? (
+              <Text style={styles.noEventsText}>No upcoming events found.</Text>
+            ) : (
+              <FlatList
+                data={upcomingEvents}
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                keyExtractor={(item) => item.id.toString()}
+                renderItem={renderEventCard}
+              />
+            )}
+          </View>
+        )}
+  
   
         <Text style={styles.text}></Text>
-        <Text style={styles.text}>
-        </Text>
+        <Text style={styles.text}></Text>
         <Button
           title="Update location"
           onPress={async () => {
             let currentLocation = await Location.getCurrentPositionAsync({});
             setLocation(currentLocation);
-            fetchEvents('sameDay');
-            fetchEvents('upcoming');
+            if (!selectedDate) {
+              fetchEvents('sameDay');
+              fetchEvents('upcoming');
+            } else {
+              fetchEvents(selectedDate);
+            }
           }}
         />
       </View>
     </SafeAreaView>
   );
+  
   
 };
 
@@ -349,6 +400,28 @@ const styles = StyleSheet.create({
     width: 200,
     height: 200,
     resizeMode: 'contain',
+  },
+  applyButton: {
+    backgroundColor: '#000',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    marginRight: 10
+  },
+  applyButtonText: {
+    color: '#fff',
+    fontWeight: 'bold'
+  },
+  closeButton: {
+    backgroundColor: '#999',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  modalButtonContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginTop: 10
   },
   disIon: {
     width: 19,

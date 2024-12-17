@@ -299,28 +299,32 @@ const getEvents = async (req, res) => {
   try {
     let events = [];
 
-    // Hvis brugeren har angivet en radius, brug den. Ellers standard.
-    // Her bruger vi standard 24.85 miles (≈40 km) for upcoming og 24.85 for sameDay.
-    // Du nævnte at du vil opdatere sameDay til 40 km som standard, 
-    // 40 km i miles ≈ 24.85 miles
-    let defaultRadiusSameDayMiles = 24.85; 
-    let defaultRadiusUpcomingMiles = 24.85;
-    
-    let usedRadius = radius ? Math.floor(radius) : (eventDate === 'sameDay' ? Math.floor(defaultRadiusSameDayMiles) : Math.floor(defaultRadiusUpcomingMiles));
+    let usedRadius = radius ? Math.floor(radius) : 24; // Hvis ingen radius, sæt en standard
 
-    const currentDate = new Date();
     let startDate, endDate;
-
+    // Tjek om eventDate er "sameDay", "upcoming" eller en specifik dato
     if (eventDate === 'sameDay') {
+      const currentDate = new Date();
       startDate = new Date(currentDate);
       startDate.setHours(0, 0, 0, 0);
       endDate = new Date(currentDate);
       endDate.setHours(23, 59, 59, 0);
     } else if (eventDate === 'upcoming') {
+      const currentDate = new Date();
       startDate = new Date(currentDate);
       startDate.setDate(currentDate.getDate() + 1);  
       endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + 7);
+    } else {
+      // Forvent at eventDate er en 'YYYY-MM-DD' string
+      const chosenDate = new Date(eventDate + "T00:00:00Z");
+      if (isNaN(chosenDate)) {
+        return res.status(400).json({message: "Invalid date format"});
+      }
+      startDate = new Date(chosenDate);
+      startDate.setHours(0,0,0,0);
+      endDate = new Date(chosenDate);
+      endDate.setHours(23,59,59,0);
     }
 
     const dateRange = {
@@ -329,7 +333,6 @@ const getEvents = async (req, res) => {
     };
 
     if (categoryArray.length > 0) {
-      // Hent events baseret på kategorier og underkategorier
       events = await fetchEventsByCategories(
         latitude,
         longitude,
@@ -339,12 +342,7 @@ const getEvents = async (req, res) => {
         categoryArray
       );
     } else {
-      // Ingen kategorier - brug original fetch-funktion
-      if (eventDate === 'sameDay') {
-        events = await fetchEventsByLocation(latitude, longitude, usedRadius, dateRange.start, dateRange.end);
-      } else if (eventDate === 'upcoming') {
-        events = await fetchEventsByLocation(latitude, longitude, usedRadius, dateRange.start, dateRange.end);
-      }
+      events = await fetchEventsByLocation(latitude, longitude, usedRadius, dateRange.start, dateRange.end);
     }
 
     res.status(200).json(events);
@@ -353,6 +351,7 @@ const getEvents = async (req, res) => {
     res.status(500).json({ message: error.message || 'Error fetching events from Ticketmaster' });
   }
 };
+
 
 // Eksporter alle funktioner
 module.exports = { 
