@@ -8,7 +8,8 @@ import {
   FlatList,
   Alert,
   Button,
-  StyleSheet
+  StyleSheet,
+  TextInput
 } from 'react-native';
 import * as Location from 'expo-location';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
@@ -17,6 +18,8 @@ import { library } from '@fortawesome/fontawesome-svg-core';
 import { fas } from '@fortawesome/free-solid-svg-icons';
 import { API_URL } from '@env';
 import { format } from 'date-fns';
+import { Picker } from '@react-native-picker/picker'; 
+import Slider from '@react-native-community/slider';
 
 library.add(fas);
 
@@ -25,6 +28,16 @@ const HomeScreen = ({ navigation, route }) => {
   const [sameDayEvents, setSameDayEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
+  const [customDistanceKm, setCustomDistanceKm] = useState(''); // String for TextInput
+  const [currentRadiusKm, setCurrentRadiusKm] = useState('');  // Den radius brugeren har valgt og sat
+  const [distance, setDistance] = useState(40); // Starter med en standardværdi på 34 km
+  const [showSlider, setShowSlider] = useState(false);
+
+
+  // Opdater din 'Distance' knap event handler
+  const toggleSliderVisibility = () => {
+    setShowSlider(!showSlider);
+  };
 
   useEffect(() => {
     // Hvis route.params.selectedCategories er defineret, opdater state
@@ -56,12 +69,12 @@ const HomeScreen = ({ navigation, route }) => {
   }, []);
 
   useEffect(() => {
-    // Når location eller valgte kategorier ændres, hent events igen
+    // Når location eller valgte kategorier ændres eller radius ændres, hent events igen
     if (location?.coords) {
       fetchEvents('sameDay');
       fetchEvents('upcoming');
     }
-  }, [location, selectedCategories]);
+  }, [location, selectedCategories, currentRadiusKm]);
 
   const fetchEvents = async (eventDate) => {
     if (!location?.coords) {
@@ -76,6 +89,16 @@ const HomeScreen = ({ navigation, route }) => {
     if (selectedCategories.length > 0) {
       const categoryString = selectedCategories.join(',');
       queryParams += `&categories=${encodeURIComponent(categoryString)}`;
+    }
+
+    // Hvis brugeren har valgt en radius, brug den. 
+    // Konverter km til miles. Hvis tomt, brug standard fra backend.
+    if (currentRadiusKm) {
+      const km = parseFloat(currentRadiusKm);
+      if (!isNaN(km)) {
+        const miles = km / 1.60934; // konverter km til miles
+        queryParams += `&radius=${Math.floor(miles)}`;
+      }
     }
 
     const url = `${API_URL}/api/events?${queryParams}`;
@@ -137,6 +160,13 @@ const HomeScreen = ({ navigation, route }) => {
     );
   };
   
+  const handleSetDistance = () => {
+    if (!customDistanceKm || isNaN(parseFloat(customDistanceKm))) {
+      Alert.alert("Invalid input", "Please enter a valid distance in km.");
+      return;
+    }
+    setCurrentRadiusKm(customDistanceKm); // sæt den valgte radius
+  };
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -150,12 +180,33 @@ const HomeScreen = ({ navigation, route }) => {
             <FontAwesomeIcon icon={faHeart} size={20} />
           </TouchableOpacity>
         </View>
-
-        <View style={styles.searchBar}>
-          <FontAwesomeIcon icon={faMagnifyingGlass} />
-          <Text style={styles.searchText}>Search for event, location etc...</Text>
-        </View>
-
+  
+        {showSlider ? (
+          <>
+            <Slider
+              style={{ width: '100%', height: 40, marginTop: -10 }}
+              minimumValue={0}
+              maximumValue={100}
+              minimumTrackTintColor="#307ecc"
+              maximumTrackTintColor="#000000"
+              step={1}
+              value={distance}
+              onValueChange={(value) => setDistance(value)}
+              onSlidingComplete={(value) => setCurrentRadiusKm(value.toString())}
+            />
+            <Text style={{ textAlign: 'center', marginBottom: 10 }}> {distance} km</Text>
+          </>
+        ) : (
+          <View style={styles.searchBar}>
+            <FontAwesomeIcon icon={faMagnifyingGlass} />
+            <TextInput
+              style={{ flex: 1, marginLeft: 10 }}
+              placeholder="Search for event, location etc..."
+              onChangeText={(text) => console.log('Search:', text)}
+            />
+          </View>
+        )}
+  
         <View style={styles.iconTray}>
           <TouchableOpacity
             style={styles.button}
@@ -164,20 +215,21 @@ const HomeScreen = ({ navigation, route }) => {
             <FontAwesomeIcon icon={faFilter} size={16} />
             <Text style={styles.buttonText}>Filters</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.button}>
-            <FontAwesomeIcon icon={faSort} size={16} />
-            <Text style={styles.buttonText}>Sort by</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.button}>
+  
+          <TouchableOpacity
+            style={styles.button}
+            onPress={toggleSliderVisibility}
+          >
             <Image source={require('./assets/distanceIcon.png')} style={styles.disIon} />
             <Text style={styles.buttonText}>Distance</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.button}>
+  
+          <TouchableOpacity style={styles.button} onPress={() => { /* navigate to calendar or another feature */ }}>
             <FontAwesomeIcon icon={faCalendarDays} size={16} />
             <Text style={styles.buttonText}>Calendar</Text>
           </TouchableOpacity>
         </View>
-
+  
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Nearby events today</Text>
           {sameDayEvents.length === 0 ? (
@@ -187,11 +239,11 @@ const HomeScreen = ({ navigation, route }) => {
               data={sameDayEvents}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               renderItem={renderEventCard}
             />
           )}
-
+  
           <Text style={styles.sectionTitle}>Upcoming events</Text>
           {upcomingEvents.length === 0 ? (
             <Text style={styles.noEventsText}>No upcoming events found.</Text>
@@ -200,12 +252,12 @@ const HomeScreen = ({ navigation, route }) => {
               data={upcomingEvents}
               horizontal
               showsHorizontalScrollIndicator={false}
-              keyExtractor={(item) => item.id}
+              keyExtractor={(item) => item.id.toString()}
               renderItem={renderEventCard}
             />
           )}
         </View>
-
+  
         <Text style={styles.text}>Your current location:</Text>
         <Text style={styles.text}>
           Latitude: {location?.coords ? location.coords.latitude : 'Loading...'} |
@@ -223,12 +275,19 @@ const HomeScreen = ({ navigation, route }) => {
       </View>
     </SafeAreaView>
   );
+  
+
 };
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f8f8f8',
+  },
+  slider: {
+    width: 200, // Justér efter behov
+    height: 40, // Justér efter behov
+    alignSelf: 'center',
   },
   buttonText: {
     marginLeft: 3,
@@ -302,11 +361,25 @@ const styles = StyleSheet.create({
     marginBottom: 12
 
   },
+  distanceContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginLeft: 5
+  },
+  distanceInput: {
+    borderWidth: 1,
+    borderColor: '#000',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    width: 80,
+    height: 35,
+    marginRight: 5
+  },
   logoutButton: {
     marginTop: 20,
   },
   section: {
-    marginBottom: 10,
+    marginBottom: 180,
     paddingLeft: 30,
   },
   sectionTitle: {
@@ -316,8 +389,10 @@ const styles = StyleSheet.create({
     marginTop: 10
   },
   card: {
-    width: 300,
-    height: 250,
+    minHeight: 249,  
+    maxHeight: 250,
+    minWidth: 299,  
+    maxWidth: 300,
     backgroundColor: '#fff',
     borderRadius: 8,
     overflow: 'hidden',

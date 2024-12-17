@@ -292,15 +292,21 @@ async function fetchEventsByCategories(userLatitude, userLongitude, radius, star
   }
 }
 
-// Controller-funktion til at hente events
-// Accepterer nu optional query param "categories" (kommasepareret liste af top-kategorier)
 const getEvents = async (req, res) => {
-  const { latitude, longitude, eventDate, categories } = req.query;
+  const { latitude, longitude, eventDate, categories, radius } = req.query;
   const categoryArray = categories ? categories.split(',') : [];
 
   try {
     let events = [];
-    let radius = eventDate === 'sameDay' ? Math.floor(12.42) : Math.floor(24.85);
+
+    // Hvis brugeren har angivet en radius, brug den. Ellers standard.
+    // Her bruger vi standard 24.85 miles (≈40 km) for upcoming og 24.85 for sameDay.
+    // Du nævnte at du vil opdatere sameDay til 40 km som standard, 
+    // 40 km i miles ≈ 24.85 miles
+    let defaultRadiusSameDayMiles = 24.85; 
+    let defaultRadiusUpcomingMiles = 24.85;
+    
+    let usedRadius = radius ? Math.floor(radius) : (eventDate === 'sameDay' ? Math.floor(defaultRadiusSameDayMiles) : Math.floor(defaultRadiusUpcomingMiles));
 
     const currentDate = new Date();
     let startDate, endDate;
@@ -327,7 +333,7 @@ const getEvents = async (req, res) => {
       events = await fetchEventsByCategories(
         latitude,
         longitude,
-        radius,
+        usedRadius,
         dateRange.start,
         dateRange.end,
         categoryArray
@@ -335,9 +341,9 @@ const getEvents = async (req, res) => {
     } else {
       // Ingen kategorier - brug original fetch-funktion
       if (eventDate === 'sameDay') {
-        events = await fetchEventsByLocation(latitude, longitude, radius, dateRange.start, dateRange.end);
+        events = await fetchEventsByLocation(latitude, longitude, usedRadius, dateRange.start, dateRange.end);
       } else if (eventDate === 'upcoming') {
-        events = await fetchEventsByLocation(latitude, longitude, radius, dateRange.start, dateRange.end);
+        events = await fetchEventsByLocation(latitude, longitude, usedRadius, dateRange.start, dateRange.end);
       }
     }
 
@@ -358,5 +364,5 @@ module.exports = {
   getEvents, 
   getCoordinatesFromAddress, 
   fetchEventsByCategory,
-  getSubCategories // Hvis du fortsat ønsker at beholde disse
+  getSubCategories
 };
