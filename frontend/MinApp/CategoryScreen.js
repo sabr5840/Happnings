@@ -10,7 +10,7 @@ let cachedCategories = null;
 const CategoryScreen = ({ navigation, route }) => {
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Her henter vi evt. allerede valgte kategorier fra route.params (hvis Home sendte dem)
   const initiallySelected = route.params?.selectedCategories || [];
   const [selectedCategories, setSelectedCategories] = useState(initiallySelected);
@@ -21,6 +21,10 @@ const CategoryScreen = ({ navigation, route }) => {
     Music: '🎵 🎸 🎤 🎧',
     'Arts & Theatre': '🎨 🩰 🎪 🎭',
     Film: '🎥 🍿 🌌 😂',
+  };
+
+  const resetCategories = () => {
+    setSelectedCategories([]); // Nulstiller valgte kategorier
   };
 
   useEffect(() => {
@@ -55,7 +59,6 @@ const CategoryScreen = ({ navigation, route }) => {
   };
 
   const toggleCategory = (categoryName) => {
-    // Hvis kategorien allerede er valgt, fjern den. Ellers tilføj den.
     setSelectedCategories(prevSelected => {
       if (prevSelected.includes(categoryName)) {
         return prevSelected.filter(c => c !== categoryName);
@@ -98,7 +101,6 @@ const CategoryScreen = ({ navigation, route }) => {
       return;
     }
 
-    // Naviger tilbage til Home og send de valgte kategorier med
     navigation.navigate('Home', { selectedCategories });
   };
 
@@ -113,6 +115,12 @@ const CategoryScreen = ({ navigation, route }) => {
         </TouchableOpacity>
         <TouchableOpacity onPress={() => navigation.navigate('FavoriteList')}>
           <FontAwesomeIcon icon={faHeart} size={20} color="#000" />
+        </TouchableOpacity>
+      </View>
+
+      <View style={styles.resetButtonContainer}>
+        <TouchableOpacity style={styles.resetButton} onPress={resetCategories}>
+          <Text style={styles.buttonTextRe}>Reset Categories</Text>
         </TouchableOpacity>
       </View>
 
@@ -162,6 +170,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginBottom: 10,
   },
+  resetButtonContainer: {
+    alignItems: 'center',
+    marginVertical: 10,
+  },
+  resetButton: {
+    padding: 10,
+    borderRadius: 5,
+    marginTop: -25
+  },
   title: {
     fontSize: 24,
     fontWeight: 'bold',
@@ -203,8 +220,12 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   categoryCardSelected: {
-    backgroundColor: '#b0cbe8', // Grønlig baggrund for at indikere valgt
+    backgroundColor: '#b0cbe8', 
     borderColor: '#b0cbe8',
+  },
+  buttonTextRe: {
+    color: 'gray',
+    fontWeight: 'bold',
   },
   buttonText: {
     color: '#fff',

@@ -258,10 +258,8 @@ const HomeScreen = ({ navigation, route }) => {
           )}
         </View>
   
-        <Text style={styles.text}>Your current location:</Text>
+        <Text style={styles.text}></Text>
         <Text style={styles.text}>
-          Latitude: {location?.coords ? location.coords.latitude : 'Loading...'} |
-          Longitude: {location?.coords ? location.coords.longitude : 'Loading...'}
         </Text>
         <Button
           title="Update location"
@@ -276,7 +274,6 @@ const HomeScreen = ({ navigation, route }) => {
     </SafeAreaView>
   );
   
-
 };
 
 const styles = StyleSheet.create({
