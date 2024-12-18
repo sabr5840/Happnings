@@ -6,7 +6,9 @@ import { enUS } from 'date-fns/locale';
 import { FontAwesome } from '@expo/vector-icons';
 import { API_URL } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
+import { Share } from 'react-native';
 
 const EventDetailScreen = ({ navigation, route }) => {
     const { eventId } = route.params;
@@ -18,24 +20,29 @@ const EventDetailScreen = ({ navigation, route }) => {
     const scaleAnim = useRef(new Animated.Value(0)).current;
 
     const onShare = async () => {
-        if (event && event.images && event.images.length > 0 && event.images[0].url) {
+        if (event) {
+            const message = `🎉 Get ready for an unforgettable evening! 🎉
+    
+The ${event.name} takes place on ${event.date} at ${event.time}.
+    
+Come and experience the magic at ${event.venueAddress.address}, ${event.venueAddress.city}.
+    
+💰 The price is ${event.priceRange || 'not available'}, you can grab your tickets here 🎟 👉 ${event.eventUrl}
+    
+Hurry up – this is guaranteed to be an experience you won’t want to miss!`;
+    
             try {
-                const url = event.images[0].url;
-                await Sharing.shareAsync(url, {
-                    mimeType: 'image/jpeg',
-                    dialogTitle: `Share ${event.name}`,
-                    UTI: 'public.jpeg'
-                });
+                await Share.share({ message });
             } catch (error) {
-                console.error('Error sharing', error.message);
+                console.error('Error sharing', error);
                 alert('Error during sharing: ' + error.message);
             }
         } else {
-            alert('Cannot share, image data is not available. Please wait until the event data is fully loaded.');
+            alert('Cannot share, event data is not available. Please wait until the event data is fully loaded.');
         }
     };
-     
-
+    
+    
     // Hent event-detaljer og tjek liked-status
     useEffect(() => {
         const fetchEventDetail = async () => {
@@ -162,7 +169,7 @@ const EventDetailScreen = ({ navigation, route }) => {
                             🕗 {format(parseISO(event.date + 'T' + event.time), 'HH:mm')}
                         </Text>
                         <Text style={styles.details}>
-                            💰 {event.priceRange || "no price available"}
+                            💰 {event.priceRange || "not available"}
                         </Text>
                         <Text style={styles.details}>
                             📍 {`${event.venueAddress.address}, ${event.venueAddress.postalCode} ${event.venueAddress.city}`}
@@ -332,12 +339,11 @@ const styles = StyleSheet.create({
         marginTop: 15
     },
     ticketButton: {
-        marginTop: 20,
         backgroundColor: 'black',
         padding: 10,
         borderRadius: 20,
         alignItems: 'center',
-        marginTop: 220
+        marginTop: 200
     },
     ticketLink: {
         fontSize: 16,
