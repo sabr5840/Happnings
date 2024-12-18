@@ -184,10 +184,15 @@ const HomeScreen = ({ navigation, route }) => {
     setCurrentRadiusKm(customDistanceKm); // sæt den valgte radius
   };
 
+  const formattedSelectedDate = selectedDate 
+  ? format(new Date(selectedDate), "EEEE do MMMM yyyy") 
+  : null;
+
+
   return (
     <SafeAreaView style={styles.safeArea}>
-  
-     <Modal
+      {/* Kalender Modal */}
+      <Modal
         visible={showCalendarModal}
         transparent={true}
         animationType="fade"
@@ -195,22 +200,14 @@ const HomeScreen = ({ navigation, route }) => {
       >
         <View style={styles.modalBackground}>
           <View style={styles.modalContent}>
-            <Calendar 
-              onDayPress={(day) => {
-                setChosenDate(day.dateString); 
-              }}
-              // Fremhæv valgt dato hvis chosenDate er sat
-              markedDates={chosenDate ? { 
-                [chosenDate]: {selected: true, selectedColor: 'blue'} 
-              } : {}}
+            <Calendar
+              onDayPress={(day) => setChosenDate(day.dateString)}
+              markedDates={chosenDate ? { [chosenDate]: { selected: true, selectedColor: 'blue' } } : {}}
             />
             <View style={styles.modalButtonContainer}>
               <TouchableOpacity style={styles.applyButton} onPress={() => {
-                setShowCalendarModal(false); 
-                if (chosenDate) {
-                  setSelectedDate(chosenDate);  
-                  // fetchEvents(selectedDate) vil køre via useEffect
-                }
+                setShowCalendarModal(false);
+                if (chosenDate) setSelectedDate(chosenDate);
               }}>
                 <Text style={styles.applyButtonText}>Apply</Text>
               </TouchableOpacity>
@@ -222,134 +219,123 @@ const HomeScreen = ({ navigation, route }) => {
         </View>
       </Modal>
   
-
-      <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => navigation.navigate('Account')}>
-            <FontAwesomeIcon icon={faUser} size={20} />
-          </TouchableOpacity>
-          <Image source={require('./assets/Logo_no_background.png')} style={styles.logo} />
-          <TouchableOpacity onPress={() => navigation.navigate('FavoriteList')}>
-            <FontAwesomeIcon icon={faHeart} size={20} />
-          </TouchableOpacity>
-        </View>
+      {/* Header */}
+      <View style={styles.header}>
+        <TouchableOpacity onPress={() => navigation.navigate('Account')}>
+          <FontAwesomeIcon icon={faUser} size={20} />
+        </TouchableOpacity>
+        <Image source={require('./assets/Logo_no_background.png')} style={styles.logo} />
+        <TouchableOpacity onPress={() => navigation.navigate('FavoriteList')}>
+          <FontAwesomeIcon icon={faHeart} size={20} />
+        </TouchableOpacity>
+      </View>
   
-        {showSlider ? (
-          <>
-            <Slider
-              style={{ width: '100%', height: 40, marginTop: -10 }}
-              minimumValue={0}
-              maximumValue={100}
-              minimumTrackTintColor="#307ecc"
-              maximumTrackTintColor="#000000"
-              step={1}
-              value={distance}
-              onValueChange={setDistance}
-              onSlidingComplete={(value) => setCurrentRadiusKm(value.toString())}
-            />
-            <View style={{ flexDirection: 'center', justifyContent: 'space-between', marginHorizontal: 10}}>
-              <Text>{distance} km</Text>
-              <Button title="Reset" onPress={resetDistance} />
-            </View>          
-          </>
-        ) : (
-          <View style={styles.searchBar}>
-            <FontAwesomeIcon icon={faMagnifyingGlass} />
-            <TextInput
-              style={{ flex: 1, marginLeft: 10 }}
-              placeholder="Search for event, location etc..."
-              onChangeText={(text) => console.log('Search:', text)}
-            />
+      {/* Conditional Rendering of Search Bar and Slider */}
+      {!showSlider ? (
+        <View style={styles.searchBar}>
+          <FontAwesomeIcon icon={faMagnifyingGlass} />
+          <TextInput
+            style={{ flex: 1, marginLeft: 10 }}
+            placeholder="Search for event, location etc..."
+            onChangeText={(text) => console.log('Search:', text)}
+          />
+        </View>
+      ) : (
+        <View style={{ width: '85%', alignSelf: 'center', marginTop: 10 }}>
+          <Text style={{ alignSelf: 'center', marginTop: -45 }}></Text>
+          <Slider
+            style={{ width: '100%', height: 40 }}
+            minimumValue={1}
+            maximumValue={100}
+            step={1}
+            value={distance}
+            onValueChange={(value) => setDistance(value)}
+            onSlidingComplete={(value) => setCurrentRadiusKm(value)}
+          />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 145 }}>
+            <Text>{distance} km</Text>
           </View>
-        )}
-  
-        <View style={styles.iconTray}>
-          <TouchableOpacity
-            style={styles.button}
-            onPress={() => navigation.navigate('Category', { selectedCategories })}
-          >
-            <FontAwesomeIcon icon={faFilter} size={16} />
-            <Text style={styles.buttonText}>Filters</Text>
-          </TouchableOpacity>
-  
-          <TouchableOpacity
-            style={styles.button}
-            onPress={toggleSliderVisibility}
-          >
-            <Image source={require('./assets/distanceIcon.png')} style={styles.disIon} />
-            <Text style={styles.buttonText}>Distance</Text>
-          </TouchableOpacity>
-  
-          <TouchableOpacity style={styles.button} onPress={() => setShowCalendarModal(true)}>
-            <FontAwesomeIcon icon={faCalendarDays} size={16} />
-            <Text style={styles.buttonText}>Calendar</Text>
-          </TouchableOpacity>
         </View>
+      )}
   
-        {selectedDate && (
+      {/* Filtre og Distancer */}
+      <View style={styles.iconTray}>
+        <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Category', { selectedCategories })}>
+          <FontAwesomeIcon icon={faFilter} size={16} />
+          <Text style={styles.buttonText}>Filters</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={toggleSliderVisibility}>
+          <Image source={require('./assets/distanceIcon.png')} style={styles.disIon} />
+          <Text style={styles.buttonText}>Distance</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={styles.button} onPress={() => setShowCalendarModal(true)}>
+          <FontAwesomeIcon icon={faCalendarDays} size={16} />
+          <Text style={styles.buttonText}>Calendar</Text>
+        </TouchableOpacity>
+      </View>
+  
+      {/* Events Sektion */}
+      <View style={styles.section}>
+        {selectedDate ? (
           <>
-            <Text style={styles.sectionTitle}>Events on {selectedDate}</Text>
-            {customEvents.length === 0 ? (
-              <Text style={styles.noEventsText}>No events found for {selectedDate}.</Text>
-            ) : (
+            <Text style={styles.sectionTitle}>Events on {formattedSelectedDate}</Text>
+            {customEvents.length > 0 ? (
               <FlatList
                 data={customEvents}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
                 renderItem={renderEventCard}
               />
+            ) : (
+              <Text style={styles.noEventsText}>No events found for {selectedDate}.</Text>
             )}
           </>
-        )}
-  
-        {!selectedDate && (
-          <View style={styles.section}>
+        ) : (
+          <>
             <Text style={styles.sectionTitle}>Nearby events today</Text>
-            {sameDayEvents.length === 0 ? (
-              <Text style={styles.noEventsText}>No events found for today.</Text>
-            ) : (
+            {sameDayEvents.length > 0 ? (
               <FlatList
                 data={sameDayEvents}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
                 renderItem={renderEventCard}
               />
+            ) : (
+              <Text style={styles.noEventsText}>No events found for today.</Text>
             )}
   
             <Text style={styles.sectionTitle}>Upcoming events</Text>
-            {upcomingEvents.length === 0 ? (
-              <Text style={styles.noEventsText}>No upcoming events found.</Text>
-            ) : (
+            {upcomingEvents.length > 0 ? (
               <FlatList
                 data={upcomingEvents}
                 horizontal
                 showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
                 renderItem={renderEventCard}
               />
+            ) : (
+              <Text style={styles.noEventsText}>No upcoming events found.</Text>
             )}
-          </View>
+          </>
         )}
-  
-  
-        <Text style={styles.text}></Text>
-        <Text style={styles.text}></Text>
-        <Button
-          title="Update location"
-          onPress={async () => {
-            let currentLocation = await Location.getCurrentPositionAsync({});
-            setLocation(currentLocation);
-            if (!selectedDate) {
-              fetchEvents('sameDay');
-              fetchEvents('upcoming');
-            } else {
-              fetchEvents(selectedDate);
-            }
-          }}
-        />
       </View>
+  
+      {/* Opdater placering */}
+      <Button
+        title="Update location"
+        onPress={async () => {
+          let currentLocation = await Location.getCurrentPositionAsync({});
+          setLocation(currentLocation);
+          if (!selectedDate) {
+            fetchEvents('sameDay');
+            fetchEvents('upcoming');
+          } else {
+            fetchEvents(selectedDate);
+          }
+        }}
+      />
     </SafeAreaView>
   );
   
@@ -375,20 +361,20 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8f8f8',
   },
     // Modal styling
-    modalBackground: {
-      flex: 1,
-      backgroundColor: 'rgba(0,0,0,0.9)', 
-      justifyContent: 'center',
-      alignItems: 'center',
-    },
-    modalContent: {
-      width: '80%', 
-      backgroundColor: '#fff',
-      borderRadius: 8,
-      padding: 20
-    },  
+  modalBackground: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.9)', 
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  modalContent: {
+    width: '80%', 
+    backgroundColor: '#fff',
+    borderRadius: 8,
+    padding: 20
+  },  
   header: {
-    marginTop: 240,
+    marginTop: -68,
     marginBottom: -50,
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -410,13 +396,15 @@ const styles = StyleSheet.create({
   },
   applyButtonText: {
     color: '#fff',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+
   },
   closeButton: {
     backgroundColor: '#999',
     paddingVertical: 10,
     paddingHorizontal: 20,
     borderRadius: 8,
+    marginLeft: 100
   },
   modalButtonContainer: {
     flexDirection: 'row',
@@ -435,7 +423,8 @@ const styles = StyleSheet.create({
     borderColor: '#000',
     borderWidth: 1,
     width: '85%',
-    borderRadius: 8
+    borderRadius: 8,
+    marginLeft: 29
   },
   searchText: {
     marginLeft: 10,
