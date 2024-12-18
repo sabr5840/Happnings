@@ -233,13 +233,14 @@ const HomeScreen = ({ navigation, route }) => {
       {/* Conditional Rendering of Search Bar and Slider */}
       {!showSlider ? (
         <View style={styles.searchBar}>
-          <FontAwesomeIcon icon={faMagnifyingGlass} />
-          <TextInput
-            style={{ flex: 1, marginLeft: 10 }}
-            placeholder="Search for event, location etc..."
-            onChangeText={(text) => console.log('Search:', text)}
-          />
-        </View>
+        <FontAwesomeIcon icon={faMagnifyingGlass} size={15} color="#000" /> 
+        <TextInput
+          style={styles.searchText}
+          placeholder="Search for event, location etc..."
+          placeholderTextColor="#888"  // Light grey color for placeholder
+          onChangeText={(text) => console.log('Search:', text)}
+        />
+      </View>
       ) : (
         <View style={{ width: '85%', alignSelf: 'center', marginTop: 10 }}>
           <Text style={{ alignSelf: 'center', marginTop: -45 }}></Text>
@@ -428,6 +429,8 @@ const styles = StyleSheet.create({
   },
   searchText: {
     marginLeft: 10,
+    color: '#000',
+
   },
   icon: {
     color: '#000',

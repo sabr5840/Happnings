@@ -6,6 +6,7 @@ import { enUS } from 'date-fns/locale';
 import { FontAwesome } from '@expo/vector-icons';
 import { API_URL } from '@env';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Sharing from 'expo-sharing';
 
 const EventDetailScreen = ({ navigation, route }) => {
     const { eventId } = route.params;
@@ -15,6 +16,25 @@ const EventDetailScreen = ({ navigation, route }) => {
     const [error, setError] = useState(null);
     const [modalVisible, setModalVisible] = useState(false);
     const scaleAnim = useRef(new Animated.Value(0)).current;
+
+    const onShare = async () => {
+        if (event && event.images && event.images.length > 0 && event.images[0].url) {
+            try {
+                const url = event.images[0].url;
+                await Sharing.shareAsync(url, {
+                    mimeType: 'image/jpeg',
+                    dialogTitle: `Share ${event.name}`,
+                    UTI: 'public.jpeg'
+                });
+            } catch (error) {
+                console.error('Error sharing', error.message);
+                alert('Error during sharing: ' + error.message);
+            }
+        } else {
+            alert('Cannot share, image data is not available. Please wait until the event data is fully loaded.');
+        }
+    };
+     
 
     // Hent event-detaljer og tjek liked-status
     useEffect(() => {
@@ -147,6 +167,12 @@ const EventDetailScreen = ({ navigation, route }) => {
                         <Text style={styles.details}>
                             📍 {`${event.venueAddress.address}, ${event.venueAddress.postalCode} ${event.venueAddress.city}`}
                         </Text>
+                        <View style={styles.shareContainer}>
+                            <TouchableOpacity onPress={onShare} style={styles.shareIcon}>
+                                <FontAwesome name="share-alt" size={20} color="#000" />
+                            </TouchableOpacity>
+                            <Text style={styles.shareText}>Share</Text>
+                        </View>
                         <TouchableOpacity
                             onPress={() => Linking.openURL(event.eventUrl)}
                             style={styles.ticketButton}
@@ -154,7 +180,6 @@ const EventDetailScreen = ({ navigation, route }) => {
                             <Text style={styles.ticketLink}>Buy Tickets Here</Text>
                         </TouchableOpacity>
                     </View>
-
                     <Modal
                         transparent={true}
                         visible={modalVisible}
@@ -195,6 +220,21 @@ const EventDetailScreen = ({ navigation, route }) => {
 };
 
 const styles = StyleSheet.create({
+    
+    shareContainer: {
+        flexDirection: 'row', // Arranger ikon og tekst horisontalt
+        alignItems: 'center', // Centrer elementerne vertikalt
+        marginTop: 10, // Tilføj lidt topmargin for at adskille fra adresse
+        marginBottom: 20, // Tilføj lidt bundmargin før købsknap
+    },
+    shareIcon: {
+        marginRight: 10, // Afstand mellem ikon og tekst
+    },
+    shareText: {
+        fontSize: 16, // Størrelse på teksten
+        color: '#000', // Tekstfarve
+    },
+       
     container: {
         flex: 1,
         backgroundColor: '#f0f0f0',
@@ -307,6 +347,7 @@ const styles = StyleSheet.create({
         paddingBottom: 1,
         paddingRight: 2,
     },
+
 });
 
 export default EventDetailScreen;
