@@ -23,7 +23,8 @@ import { Picker } from '@react-native-picker/picker';
 import Slider from '@react-native-community/slider';
 import { Calendar } from 'react-native-calendars';
 import { BlurView } from '@react-native-community/blur';
-
+const mbxGeocoding = require('@mapbox/mapbox-sdk/services/geocoding');
+import { MAPBOX_ACCESS_TOKEN } from '@env'; // Sørg for at konfigurere din byggeproces til at inkludere env variabler
 
 library.add(fas);
 
@@ -40,6 +41,11 @@ const HomeScreen = ({ navigation, route }) => {
   const [customEvents, setCustomEvents] = useState([]);
   const [selectedDate, setSelectedDate] = useState(null); // Dato bruges til at hente events efter 'Apply'
   const [chosenDate, setChosenDate] = useState(null);    // Midlertidig dato valgt i kalenderen
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
+  const geocodingClient = mbxGeocoding({ accessToken: MAPBOX_ACCESS_TOKEN });
+
+
 
   // Opdater din 'Distance' knap event handler
   const toggleSliderVisibility = () => {
@@ -84,17 +90,39 @@ const HomeScreen = ({ navigation, route }) => {
   useEffect(() => {
     if (location?.coords) {
       if (!selectedDate) {
-        // Ingen specifik dato: hent sameDay og upcoming
+        // Henter events for 'today' og 'upcoming'
         fetchEvents('sameDay');
         fetchEvents('upcoming');
       } else {
-        // Hvis specifik dato valgt
+        // Henter events for specifik dato
         fetchEvents(selectedDate); 
       }
     }
   }, [location, selectedCategories, currentRadiusKm, selectedDate]);
-
-  const fetchEvents = async (eventDate) => {
+  
+  const fetchCountryCode = async (latitude, longitude) => {
+    try {
+      const response = await geocodingClient.reverseGeocode({
+        query: [longitude, latitude],
+        limit: 1
+      }).send();
+  
+      if (response.body.features.length > 0) {
+        const country = response.body.features[0].context.find((c) => c.id.startsWith('country.'));
+        return country.short_code; // Returner ISO-landekoden
+      }
+      return null; // Ingen landekode fundet
+    } catch (error) {
+      console.error('Failed to fetch country code:', error);
+      return null;
+    }
+  };
+  
+  const fetchEvents = async (eventDate, keyword = '') => {
+    if (keyword) {
+      queryParams += `&keyword=${encodeURIComponent(keyword)}`;
+    }
+    
     if (!location?.coords) {
       console.log("Location data is not available yet.");
       return;
@@ -148,6 +176,56 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
 
+  const resetSearch = () => {
+    setIsSearching(false);
+    setSearchQuery('');
+    setCustomEvents([]);
+  };
+
+  // Funktion til at hente events baseret på søgeord
+  const fetchEventsByKeyword = async (keyword) => {
+    setIsSearching(true);  // Indikerer at en søgning er igang
+    if (!location?.coords) {
+      console.log("Location data is not available yet.");
+      return;
+    }
+  
+    const url = `${API_URL}/api/events/keyword?keyword=${encodeURIComponent(keyword)}`;
+  
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+      });
+  
+      const data = await response.json();
+  
+      if (!response.ok) {
+        console.error('HTTP Response Not OK:', response.status, response.statusText);
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+  
+      // Opdaterer 'customEvents' state med de hentede data
+      setCustomEvents(data);
+    } catch (error) {
+      console.error('Error fetching events by keyword:', error);
+      Alert.alert('Fetch Error', `Unable to fetch events by keyword: ${error.message}`);
+    }
+  };
+  
+  
+  useEffect(() => {
+    // Nulstil eventlister når der søges
+    if (isSearching) {
+      setSameDayEvents([]);
+      setUpcomingEvents([]);
+    }
+  }, [isSearching]);
+  
+
   const renderEventCard = ({ item }) => {
     const imageUrl = item.images?.[0]?.url ?? 'default_image_url_here';
     const distanceInKm = ((item.distance ?? 0) * 1.60934).toFixed(2);
@@ -187,7 +265,6 @@ const HomeScreen = ({ navigation, route }) => {
   const formattedSelectedDate = selectedDate 
   ? format(new Date(selectedDate), "EEEE do MMMM yyyy") 
   : null;
-
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -232,15 +309,33 @@ const HomeScreen = ({ navigation, route }) => {
   
       {/* Conditional Rendering of Search Bar and Slider */}
       {!showSlider ? (
-        <View style={styles.searchBar}>
-        <FontAwesomeIcon icon={faMagnifyingGlass} size={15} color="#000" /> 
-        <TextInput
-          style={styles.searchText}
-          placeholder="Search for event, location etc..."
-          placeholderTextColor="#888"  // Light grey color for placeholder
-          onChangeText={(text) => console.log('Search:', text)}
-        />
-      </View>
+     <View style={styles.searchBar}>
+      <TextInput
+        style={styles.searchText}
+        placeholder="Search for event, location etc..."
+        placeholderTextColor="#888"
+        value={searchQuery}
+        onChangeText={setSearchQuery}
+        onSubmitEditing={() => {
+          console.log('Submit pressed:', searchQuery);
+          if (!searchQuery.trim()) {
+            Alert.alert("Please enter a search term.");
+            return;
+          }
+          fetchEventsByKeyword(searchQuery.trim());
+        }}        
+      />
+      <TouchableOpacity onPress={() => {
+        console.log('Search icon pressed');
+        if (!searchQuery.trim()) {
+          Alert.alert("Please enter a search term.");
+          return;
+        }
+        fetchEventsByKeyword(searchQuery.trim());
+      }}>
+        <FontAwesomeIcon icon={faMagnifyingGlass} size={15} color="#000" />
+      </TouchableOpacity>
+    </View>
       ) : (
         <View style={{ width: '85%', alignSelf: 'center', marginTop: 10 }}>
           <Text style={{ alignSelf: 'center', marginTop: -45 }}></Text>
@@ -277,52 +372,67 @@ const HomeScreen = ({ navigation, route }) => {
   
       {/* Events Sektion */}
       <View style={styles.section}>
-        {selectedDate ? (
-          <>
-            <Text style={styles.sectionTitle}>Events on {formattedSelectedDate}</Text>
-            {customEvents.length > 0 ? (
-              <FlatList
-                data={customEvents}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                renderItem={renderEventCard}
-              />
-            ) : (
-              <Text style={styles.noEventsText}>No events found for {selectedDate}.</Text>
-            )}
-          </>
-        ) : (
-          <>
-            <Text style={styles.sectionTitle}>Nearby events today</Text>
-            {sameDayEvents.length > 0 ? (
-              <FlatList
-                data={sameDayEvents}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                renderItem={renderEventCard}
-              />
-            ) : (
-              <Text style={styles.noEventsText}>No events found for today.</Text>
-            )}
-  
-            <Text style={styles.sectionTitle}>Upcoming events</Text>
-            {upcomingEvents.length > 0 ? (
-              <FlatList
-                data={upcomingEvents}
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
-                renderItem={renderEventCard}
-              />
-            ) : (
-              <Text style={styles.noEventsText}>No upcoming events found.</Text>
-            )}
-          </>
-        )}
+          {isSearching ? (
+              <>
+                  <Text style={styles.sectionTitle}>Search Results</Text>
+                  {customEvents.length > 0 ? (
+                      <FlatList
+                          data={customEvents}
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          keyExtractor={(item) => item.id.toString()}
+                          renderItem={renderEventCard}
+                      />
+                  ) : (
+                      <Text style={styles.noEventsText}>No events found for this search.</Text>
+                  )}
+              </>
+          ) : selectedDate ? (
+              <>
+                  <Text style={styles.sectionTitle}>Events on {formattedSelectedDate}</Text>
+                  {customEvents.length > 0 ? (
+                      <FlatList
+                          data={customEvents}
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          keyExtractor={(item) => item.id.toString()}
+                          renderItem={renderEventCard}
+                      />
+                  ) : (
+                      <Text style={styles.noEventsText}>No events found for {formattedSelectedDate}.</Text>
+                  )}
+              </>
+          ) : (
+              <>
+                  <Text style={styles.sectionTitle}>Nearby events today</Text>
+                  {sameDayEvents.length > 0 ? (
+                      <FlatList
+                          data={sameDayEvents}
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                          renderItem={renderEventCard}
+                      />
+                  ) : (
+                      <Text style={styles.noEventsText}>No events found for today.</Text>
+                  )}
+
+                  <Text style={styles.sectionTitle}>Upcoming events</Text>
+                  {upcomingEvents.length > 0 ? (
+                      <FlatList
+                          data={upcomingEvents}
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          keyExtractor={(item) => item.id?.toString() || Math.random().toString()}
+                          renderItem={renderEventCard}
+                      />
+                  ) : (
+                      <Text style={styles.noEventsText}>No upcoming events found.</Text>
+                  )}
+              </>
+          )}
       </View>
-  
+
       {/* Opdater placering */}
       <Button
         title="Update location"
@@ -339,7 +449,6 @@ const HomeScreen = ({ navigation, route }) => {
       />
     </SafeAreaView>
   );
-  
   
 };
 

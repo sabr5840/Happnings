@@ -135,6 +135,29 @@ const fetchSameDayEvents = async (userLatitude, userLongitude) => {
   return await fetchEventsByLocation(userLatitude, userLongitude, radius, dateRange.start, dateRange.end);
 };
 
+const fetchEventsByKeyword = async (keyword, userLatitude, userLongitude, radius, startDateTime, endDateTime) => {
+  const apiKey = process.env.TICKETMASTER_API_KEY;
+  const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
+  
+  const params = {
+    apikey: apiKey,
+    keyword: keyword, // Sørg for, at keyword sendes med
+    latlong: `${userLatitude},${userLongitude}`,
+    radius: Math.floor(radius),
+    startDateTime,
+    endDateTime,
+  };
+
+  try {
+    const data = await fetchWithExponentialBackoff(apiUrl, params);
+    const events = data._embedded ? data._embedded.events : [];
+    return events;
+  } catch (error) {
+    console.error('Error fetching events by keyword:', error.message);
+    throw new Error('Failed to fetch events');
+  }
+};
+
 // Funktion til at hente kommende begivenheder (op til en uge frem) med radius ~24.85 miles
 const fetchUpcomingEvents = async (userLatitude, userLongitude) => {
   const radius = Math.floor(24.85); 
@@ -352,6 +375,41 @@ const getEvents = async (req, res) => {
   }
 };
 
+const getEventsKeyword = async (req, res) => {
+  const { keyword } = req.query;  // Få keyword fra query parameters
+
+  // Hvis der ikke er noget keyword, returnér en fejl
+  if (!keyword) {
+    return res.status(400).json({ message: 'Keyword parameter is required' });
+  }
+
+  try {
+    const apiKey = process.env.TICKETMASTER_API_KEY;
+    const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
+
+    // Parametre til API-anmodning
+    const params = {
+      apikey: apiKey,
+      keyword: keyword,  // Brug keyword til at søge
+    };
+
+    // Foretag API-anmodningen til Ticketmaster
+    const data = await fetchWithExponentialBackoff(apiUrl, params);
+
+    // Hvis vi har events i svaret, send dem tilbage
+    const events = data._embedded ? data._embedded.events : [];
+    
+    if (events.length === 0) {
+      return res.status(404).json({ message: 'No events found for the given keyword.' });
+    }
+
+    res.status(200).json(events);  // Returnér de fundne events
+  } catch (error) {
+    console.error('Error fetching events:', error);
+    res.status(500).json({ message: 'Failed to fetch events', error: error.message });
+  }
+};
+
 
 // Eksporter alle funktioner
 module.exports = { 
@@ -363,5 +421,7 @@ module.exports = {
   getEvents, 
   getCoordinatesFromAddress, 
   fetchEventsByCategory,
-  getSubCategories
+  getSubCategories, 
+  getEventsKeyword,
+  fetchEventsByKeyword
 };
