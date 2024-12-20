@@ -180,7 +180,19 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
   
-
+  const clearSearch = () => {
+    setSearchQuery('');  // Clears the search text
+    setIsSearching(false);  // Resets the searching state
+    setCustomEvents([]);  // Clears any search results
+  
+    // Optionally fetch default data
+    if (location?.coords) {
+      fetchEvents('sameDay');
+      fetchEvents('upcoming');
+    }
+  };
+  
+  
   // Funktion til at hente events baseret på søgeord
   const fetchEventsByKeyword = async (keyword) => {
     setIsSearching(true);  
@@ -300,36 +312,30 @@ const HomeScreen = ({ navigation, route }) => {
   
       {/* Conditional Rendering of Search Bar and Slider */}
       {!showSlider ? (
-     <View style={styles.searchBar}>
-      <TextInput
-        style={styles.searchText}
-        placeholder="Search for event, location etc..."
-        placeholderTextColor="#888"
-        value={searchQuery}
-        onChangeText={setSearchQuery}
-        onSubmitEditing={() => {
-          console.log('Submit pressed:', searchQuery);
-          if (!searchQuery.trim()) {
-            Alert.alert("Please enter a search term.");
-            return;
-          }
-          fetchEventsByKeyword(searchQuery.trim());
-        }}        
-      />
-      <TouchableOpacity onPress={() => {
-        console.log('Search icon pressed');
-        if (!searchQuery.trim()) {
-          Alert.alert("Please enter a search term.");
-          return;
-        }
-        fetchEventsByKeyword(searchQuery.trim());
-      }}>
-        <FontAwesomeIcon icon={faMagnifyingGlass} size={15} color="#000" />
-      </TouchableOpacity>
-    </View>
+        <View style={styles.searchBar}>
+          <FontAwesomeIcon icon={faMagnifyingGlass} size={20} style={styles.icon} />
+          <TextInput
+            style={styles.searchText}
+            placeholder="Search for event, location etc..."
+            placeholderTextColor="#888"
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+            onSubmitEditing={() => {
+              if (!searchQuery.trim()) {
+                Alert.alert("Please enter a search term.");
+                return;
+              }
+              fetchEventsByKeyword(searchQuery.trim());
+            }}
+          />
+          {searchQuery.length > 0 && (
+            <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+              <Text style={{ fontSize: 16, color: '#000' }}>Clear</Text>
+            </TouchableOpacity>
+          )}
+        </View>
       ) : (
         <View style={{ width: '85%', alignSelf: 'center', marginTop: 10 }}>
-          <Text style={{ alignSelf: 'center', marginTop: -45 }}></Text>
           <Slider
             style={{ width: '100%', height: 40 }}
             minimumValue={1}
@@ -344,6 +350,7 @@ const HomeScreen = ({ navigation, route }) => {
           </View>
         </View>
       )}
+
   
       {/* Filtre og Distancer */}
       <View style={styles.iconTray}>
@@ -426,7 +433,7 @@ const HomeScreen = ({ navigation, route }) => {
 
       {/* Opdater placering */}
       <Button
-        title="Update location"
+        title=""
         onPress={async () => {
           let currentLocation = await Location.getCurrentPositionAsync({});
           setLocation(currentLocation);
@@ -447,6 +454,10 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: '#f8f8f8',
+  },
+  clearButton: {
+    color: '#0000ff',  // You can change the color as needed
+    fontWeight: 'bold'
   },
   slider: {
     width: 200, 
@@ -528,8 +539,9 @@ const styles = StyleSheet.create({
     marginLeft: 29
   },
   searchText: {
-    marginLeft: 10,
+    marginRight: 10, 
     color: '#000',
+    flex: 1,
 
   },
   icon: {
