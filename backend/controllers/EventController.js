@@ -376,9 +376,8 @@ const getEvents = async (req, res) => {
 };
 
 const getEventsKeyword = async (req, res) => {
-  const { keyword } = req.query;  // Få keyword fra query parameters
+  const { keyword, countryCode } = req.query;  // Læs countryCode, hvis givet
 
-  // Hvis der ikke er noget keyword, returnér en fejl
   if (!keyword) {
     return res.status(400).json({ message: 'Keyword parameter is required' });
   }
@@ -387,29 +386,29 @@ const getEventsKeyword = async (req, res) => {
     const apiKey = process.env.TICKETMASTER_API_KEY;
     const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
 
-    // Parametre til API-anmodning
     const params = {
       apikey: apiKey,
-      keyword: keyword,  // Brug keyword til at søge
+      keyword: keyword
     };
 
-    // Foretag API-anmodningen til Ticketmaster
-    const data = await fetchWithExponentialBackoff(apiUrl, params);
+    // Tilføj landekode, men kun hvis den er sendt med
+    if (countryCode) {
+      params.countryCode = countryCode;
+    }
 
-    // Hvis vi har events i svaret, send dem tilbage
+    const data = await fetchWithExponentialBackoff(apiUrl, params);
     const events = data._embedded ? data._embedded.events : [];
     
     if (events.length === 0) {
       return res.status(404).json({ message: 'No events found for the given keyword.' });
     }
 
-    res.status(200).json(events);  // Returnér de fundne events
+    res.status(200).json(events);
   } catch (error) {
     console.error('Error fetching events:', error);
     res.status(500).json({ message: 'Failed to fetch events', error: error.message });
   }
 };
-
 
 // Eksporter alle funktioner
 module.exports = { 

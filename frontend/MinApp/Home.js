@@ -23,8 +23,6 @@ import { Picker } from '@react-native-picker/picker';
 import Slider from '@react-native-community/slider';
 import { Calendar } from 'react-native-calendars';
 import { BlurView } from '@react-native-community/blur';
-const mbxGeocoding = require('@mapbox/mapbox-sdk/services/geocoding');
-import { MAPBOX_ACCESS_TOKEN } from '@env'; // Sørg for at konfigurere din byggeproces til at inkludere env variabler
 
 library.add(fas);
 
@@ -33,7 +31,6 @@ const HomeScreen = ({ navigation, route }) => {
   const [sameDayEvents, setSameDayEvents] = useState([]);
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [selectedCategories, setSelectedCategories] = useState([]);
-  const [customDistanceKm, setCustomDistanceKm] = useState(''); 
   const [currentRadiusKm, setCurrentRadiusKm] = useState(40);  
   const [distance, setDistance] = useState(40); 
   const [showSlider, setShowSlider] = useState(false);
@@ -43,9 +40,23 @@ const HomeScreen = ({ navigation, route }) => {
   const [chosenDate, setChosenDate] = useState(null);    // Midlertidig dato valgt i kalenderen
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
-  const geocodingClient = mbxGeocoding({ accessToken: MAPBOX_ACCESS_TOKEN });
+  const [userCountryCode, setUserCountryCode] = useState('');
 
 
+  useEffect(() => {
+    const getCountry = async () => {
+      if (location?.coords) {
+        const { latitude, longitude } = location.coords;
+        let reverseGeocode = await Location.reverseGeocodeAsync({ latitude, longitude });
+        
+        if (reverseGeocode && reverseGeocode.length > 0) {
+          const userCountry = reverseGeocode[0].isoCountryCode; // isoCountryCode er f.eks. "DK"
+          setUserCountryCode(userCountry); // Gem landekode i state
+        }
+      }
+    };
+    getCountry();
+  }, [location]);
 
   // Opdater din 'Distance' knap event handler
   const toggleSliderVisibility = () => {
@@ -100,36 +111,18 @@ const HomeScreen = ({ navigation, route }) => {
     }
   }, [location, selectedCategories, currentRadiusKm, selectedDate]);
   
-  const fetchCountryCode = async (latitude, longitude) => {
-    try {
-      const response = await geocodingClient.reverseGeocode({
-        query: [longitude, latitude],
-        limit: 1
-      }).send();
-  
-      if (response.body.features.length > 0) {
-        const country = response.body.features[0].context.find((c) => c.id.startsWith('country.'));
-        return country.short_code; // Returner ISO-landekoden
-      }
-      return null; // Ingen landekode fundet
-    } catch (error) {
-      console.error('Failed to fetch country code:', error);
-      return null;
-    }
-  };
-  
   const fetchEvents = async (eventDate, keyword = '') => {
-    if (keyword) {
-      queryParams += `&keyword=${encodeURIComponent(keyword)}`;
-    }
-    
     if (!location?.coords) {
       console.log("Location data is not available yet.");
       return;
     }
-
+  
     const { latitude, longitude } = location.coords;
     let queryParams = `latitude=${latitude}&longitude=${longitude}&eventDate=${eventDate}`;
+  
+    if (keyword) {
+      queryParams += `&keyword=${encodeURIComponent(keyword)}`;
+    }  
 
     if (selectedCategories.length > 0) {
       const categoryString = selectedCategories.join(',');
@@ -176,21 +169,28 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
 
-  const resetSearch = () => {
-    setIsSearching(false);
-    setSearchQuery('');
-    setCustomEvents([]);
+  const getCountry = async () => {
+    if (location?.coords) {
+      const { latitude, longitude } = location.coords;
+      let reverseGeocode = await Location.reverseGeocodeAsync({ latitude, longitude });
+      if (reverseGeocode && reverseGeocode.length > 0) {
+        const userCountry = reverseGeocode[0].isoCountryCode; 
+        setUserCountryCode(userCountry); 
+      }
+    }
   };
+  
 
   // Funktion til at hente events baseret på søgeord
   const fetchEventsByKeyword = async (keyword) => {
-    setIsSearching(true);  // Indikerer at en søgning er igang
+    setIsSearching(true);  
     if (!location?.coords) {
       console.log("Location data is not available yet.");
       return;
     }
   
-    const url = `${API_URL}/api/events/keyword?keyword=${encodeURIComponent(keyword)}`;
+    // Antag at du har userCountryCode i state (du har oprettet setUserCountryCode i getCountry)
+    const url = `${API_URL}/api/events/keyword?keyword=${encodeURIComponent(keyword)}&countryCode=${encodeURIComponent(userCountryCode)}`;
   
     try {
       const response = await fetch(url, {
@@ -208,15 +208,13 @@ const HomeScreen = ({ navigation, route }) => {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
   
-      // Opdaterer 'customEvents' state med de hentede data
       setCustomEvents(data);
     } catch (error) {
       console.error('Error fetching events by keyword:', error);
       Alert.alert('Fetch Error', `Unable to fetch events by keyword: ${error.message}`);
     }
   };
-  
-  
+
   useEffect(() => {
     // Nulstil eventlister når der søges
     if (isSearching) {
@@ -224,16 +222,17 @@ const HomeScreen = ({ navigation, route }) => {
       setUpcomingEvents([]);
     }
   }, [isSearching]);
-  
 
   const renderEventCard = ({ item }) => {
     const imageUrl = item.images?.[0]?.url ?? 'default_image_url_here';
-    const distanceInKm = ((item.distance ?? 0) * 1.60934).toFixed(2);
+    const distanceText = item.distance !== undefined && item.distance !== null
+    ? `${((item.distance) * 1.60934).toFixed(2)} km from you`
+    : 'Not available';
     const eventDateTime = item.dates?.start?.dateTime;
     const eventDate = eventDateTime ? new Date(eventDateTime) : new Date();
     const formattedDate = format(eventDate, 'dd. MMM yyyy');
     const formattedTime = format(eventDate, 'HH:mm');
-    const priceRange = item.sales?.public?.priceRanges?.[0];
+    const priceRange = item.priceRanges?.[0];
     const price = priceRange ? `${priceRange.min} - ${priceRange.max} kr.` : 'Not available';
   
     return (
@@ -245,7 +244,7 @@ const HomeScreen = ({ navigation, route }) => {
             <Text style={styles.cardTitle}>{item.name}</Text>
             <View style={styles.cardDetails}>
               <Text style={styles.cardDetailText}>📅 {formattedDate} - {formattedTime}</Text>
-              <Text style={styles.cardDetailText}>📍 {distanceInKm} km from you</Text>
+              <Text style={styles.cardDetailText}>📍 {distanceText}</Text>
               <Text style={styles.cardDetailText}>💰 {price}</Text>
             </View>
           </View>
@@ -254,14 +253,6 @@ const HomeScreen = ({ navigation, route }) => {
     );
   };
   
-  const handleSetDistance = () => {
-    if (!customDistanceKm || isNaN(parseFloat(customDistanceKm))) {
-      Alert.alert("Invalid input", "Please enter a valid distance in km.");
-      return;
-    }
-    setCurrentRadiusKm(customDistanceKm); // sæt den valgte radius
-  };
-
   const formattedSelectedDate = selectedDate 
   ? format(new Date(selectedDate), "EEEE do MMMM yyyy") 
   : null;
