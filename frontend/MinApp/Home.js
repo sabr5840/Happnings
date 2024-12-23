@@ -23,6 +23,9 @@ import { Picker } from '@react-native-picker/picker';
 import Slider from '@react-native-community/slider';
 import { Calendar } from 'react-native-calendars';
 import { BlurView } from '@react-native-community/blur';
+import { API_KEY_GEOCODING } from '@env'; 
+
+
 
 library.add(fas);
 
@@ -41,6 +44,8 @@ const HomeScreen = ({ navigation, route }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [userCountryCode, setUserCountryCode] = useState('');
+  const onlyDate = format(new Date(), 'yyyy-MM-dd');
+
 
 
   useEffect(() => {
@@ -118,27 +123,31 @@ const HomeScreen = ({ navigation, route }) => {
     }
   
     const { latitude, longitude } = location.coords;
-    let queryParams = `latitude=${latitude}&longitude=${longitude}&eventDate=${eventDate}`;
+    let queryParams = `latitude=${latitude}&longitude=${longitude}`;
+  
+    // Format eventDate as ISO 8601 string
+    if (eventDate) {
+      const formattedDate = format(new Date(eventDate), "yyyy-MM-dd'T'HH:mm:ss'Z'");
+      queryParams += `&eventDate=${formattedDate}`;
+    }
   
     if (keyword) {
       queryParams += `&keyword=${encodeURIComponent(keyword)}`;
-    }  
-
+    }
+  
     if (selectedCategories.length > 0) {
       const categoryString = selectedCategories.join(',');
       queryParams += `&categories=${encodeURIComponent(categoryString)}`;
     }
-
+  
     if (currentRadiusKm) {
       const km = parseFloat(currentRadiusKm);
-      if (!isNaN(km)) {
-        const miles = km / 1.60934; 
-        queryParams += `&radius=${Math.floor(miles)}`;
-      }
+      const miles = km / 1.60934;
+      queryParams += `&radius=${Math.floor(miles)}`;
     }
-
+  
     const url = `${API_URL}/api/events?${queryParams}`;
-
+  
     try {
       const response = await fetch(url, {
         method: 'GET',
@@ -147,20 +156,19 @@ const HomeScreen = ({ navigation, route }) => {
           'Cache-Control': 'no-cache'
         },
       });
-
+  
       const data = await response.json();
-
+  
       if (!response.ok) {
         console.error('HTTP Response Not OK:', response.status, response.statusText);
         throw new Error(`HTTP error! status: ${response.status} - ${data.message}`);
       }
-
+  
       if (eventDate === 'sameDay') {
         setSameDayEvents(data);
       } else if (eventDate === 'upcoming') {
         setUpcomingEvents(data);
       } else {
-        // Hvis eventDate er en valgt dato i YYYY-MM-DD format
         setCustomEvents(data);
       }
     } catch (error) {
@@ -168,7 +176,7 @@ const HomeScreen = ({ navigation, route }) => {
       Alert.alert('Fetch Error', `Unable to fetch events: ${error.message}`);
     }
   };
-
+  
   const getCountry = async () => {
     if (location?.coords) {
       const { latitude, longitude } = location.coords;
@@ -191,7 +199,55 @@ const HomeScreen = ({ navigation, route }) => {
       fetchEvents('upcoming');
     }
   };
+
+  const fetchEventsByAddress = async (address) => {
+    if (!address) return;
   
+    try {
+      const coords = await getCoordinatesFromAddress(address);
+      if (!coords) throw new Error('Unable to get coordinates for address.');
+  
+      const { lat, lng } = coords;
+      
+      // Send kun dato i 'YYYY-MM-DD' format
+      const onlyDate = format(new Date(), 'yyyy-MM-dd');
+  
+      const url = `${API_URL}/api/events?latitude=${lat}&longitude=${lng}&radius=40&eventDate=${onlyDate}`;
+      console.log('URL:', url);
+  
+      const response = await fetch(url, {
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        }
+      });
+      const data = await response.json();
+  
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status} - ${data.message}`);
+      }
+  
+      console.log('Events fetched successfully:', data);
+      return data;
+    } catch (error) {
+      console.error('Error fetching events by address:', error);
+      Alert.alert('Fetch Error', error.message);
+    }
+  };
+  
+  const getCoordinatesFromAddress = async (address) => {
+    const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY_GEOCODING}`;
+    try {
+      const response = await fetch(url);
+      const data = await response.json();
+      if (data.status !== 'OK') throw new Error('Failed to get coordinates for the address.');
+  
+      const { lat, lng } = data.results[0].geometry.location;
+      return { lat, lng };
+    } catch (error) {
+      return null;  // Consider how you want to handle errors upstream
+    }
+  };
   
   // Funktion til at hente events baseret på søgeord
   const fetchEventsByKeyword = async (keyword) => {
@@ -224,6 +280,28 @@ const HomeScreen = ({ navigation, route }) => {
     } catch (error) {
       console.error('Error fetching events by keyword:', error);
       Alert.alert('Fetch Error', `Unable to fetch events by keyword: ${error.message}`);
+    }
+  };
+
+  const handleSearchQuery = async (query) => {
+    try {
+      // Forsøg at geocode
+      const coords = await getCoordinatesFromAddress(query);
+      if (coords) {
+        // Hvis vi kan finde coords, er det en adresse
+        console.log("Detected address query:", query);
+        await fetchEventsByAddress(query);
+      } else {
+        // coords === null -> geocoding fejlede, altså keyword
+        console.log("Detected keyword query:", query);
+        setIsSearching(true);
+        await fetchEventsByKeyword(query);
+      }
+    } catch (error) {
+      // Ved en exception i geocoding, fallback til keywordsøgning
+      console.log("Geocoding threw error -> fallback to keyword:", error);
+      setIsSearching(true);
+      await fetchEventsByKeyword(query);
     }
   };
 
@@ -313,19 +391,19 @@ const HomeScreen = ({ navigation, route }) => {
       {/* Conditional Rendering of Search Bar and Slider */}
       {!showSlider ? (
         <View style={styles.searchBar}>
-          <FontAwesomeIcon icon={faMagnifyingGlass} size={20} style={styles.icon} />
-          <TextInput
-            style={styles.searchText}
-            placeholder="Search for event, location etc..."
-            placeholderTextColor="#888"
+        <FontAwesomeIcon icon={faMagnifyingGlass} size={20} style={[styles.icon, { marginLeft: -6 }]} />          
+            <TextInput
+            style={[styles.searchText, { paddingLeft: 5 }]} // Tilføj paddingLeft for at skubbe teksten til højre
+            placeholder="Search by artist, venue, or event..."
+            placeholderTextColor="gray" 
             value={searchQuery}
             onChangeText={setSearchQuery}
             onSubmitEditing={() => {
               if (!searchQuery.trim()) {
-                Alert.alert("Please enter a search term.");
+                Alert.alert("Please enter a search term or address.");
                 return;
               }
-              fetchEventsByKeyword(searchQuery.trim());
+              handleSearchQuery(searchQuery.trim());
             }}
           />
           {searchQuery.length > 0 && (
@@ -335,7 +413,7 @@ const HomeScreen = ({ navigation, route }) => {
           )}
         </View>
       ) : (
-        <View style={{ width: '85%', alignSelf: 'center', marginTop: 10 }}>
+        <View style={{ width: '85%', alignSelf: 'center', marginTop: -10 }}>
           <Slider
             style={{ width: '100%', height: 40 }}
             minimumValue={1}
@@ -345,7 +423,7 @@ const HomeScreen = ({ navigation, route }) => {
             onValueChange={(value) => setDistance(value)}
             onSlidingComplete={(value) => setCurrentRadiusKm(value)}
           />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 145 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 145, marginTop: 5, marginBottom: 5}}>
             <Text>{distance} km</Text>
           </View>
         </View>
@@ -540,14 +618,14 @@ const styles = StyleSheet.create({
   },
   searchText: {
     marginRight: 10, 
-    color: '#000',
+    color: 'black',
     flex: 1,
 
   },
   icon: {
     color: '#000',
     paddingHorizontal: 15,
-    marginLeft: -10
+    marginLeft: -10,
   },
   topIcon: {
     color: '#000',
