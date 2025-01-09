@@ -1,72 +1,72 @@
+// Load environment variables from .env file
 require('dotenv').config();
-const axios = require('axios');
-const NodeCache = require('node-cache');
-const myCache = new NodeCache({ stdTTL: 100, checkperiod: 120 });
+const axios = require('axios'); // Axios for making HTTP requests
+const NodeCache = require('node-cache'); // Import NodeCache to cache data
+const myCache = new NodeCache({ stdTTL: 100, checkperiod: 120 }); // Initialize cache with a standard TTL of 100 seconds and check period of 120 seconds
 
-// Hjælpefunktion til at vente
+// Helper function to implement a delay
 const wait = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-// Funktion til eksponentiel tilbagegang ved API-grænseoverskridelser (status 429)
+// Function to handle exponential backoff mechanism when rate limit is reached (HTTP 429)
 async function fetchWithExponentialBackoff(url, params, retries = 5, backoff = 300) {
   try {
     const response = await axios.get(url, { params });
     return response.data;
   } catch (error) {
     if (retries > 0 && error.response && error.response.status === 429) {
-      await wait(backoff);
+      await wait(backoff); // Wait for the specified backoff time
       return fetchWithExponentialBackoff(url, params, retries - 1, backoff * 2);
     } else {
-      throw error;
+      throw error; // Throw error if retries are exhausted or other errors occur
     }
   }
 }
 
-// Cache til classifications
+// Cache for classifications with a 24-hour duration
 let cachedClassifications = null;
 let classificationCacheTimestamp = null;
-const CLASSIFICATION_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 timer
+const CLASSIFICATION_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
 
-// Hent alle classification data og cache dem
+// Fetch all classification data from Ticketmaster API and cache it
 async function fetchClassifications() {
   const now = Date.now();
   if (cachedClassifications && classificationCacheTimestamp && (now - classificationCacheTimestamp < CLASSIFICATION_CACHE_DURATION)) {
-    return cachedClassifications;
+    return cachedClassifications; // Return cached data if still valid
   }
 
   const apiKey = process.env.TICKETMASTER_API_KEY;
   const url = 'https://app.ticketmaster.com/discovery/v2/classifications.json';
   const params = { apikey: apiKey };
   
-  const data = await fetchWithExponentialBackoff(url, params);
+  const data = await fetchWithExponentialBackoff(url, params); // Use exponential backoff function to fetch data
   if (!data._embedded || !data._embedded.classifications) {
-    throw new Error('Invalid classification data from Ticketmaster');
+    throw new Error('Invalid classification data from Ticketmaster'); // Check data validity
   }
 
-  cachedClassifications = data._embedded.classifications;
+  cachedClassifications = data._embedded.classifications; // Cache the fetched classifications
   classificationCacheTimestamp = now;
   return cachedClassifications;
 }
 
 /**
- * Få alle underkategorier (genres, subgenres, types, subtypes) for en given top-kategori (segment).
- * Returnerer en kommasepareret liste af classificationId'er, der kan bruges i et events-kald.
+ * Retrieve all subcategories (genres, subgenres, types, subtypes) for a given top category (segment).
+ * Returns a comma-separated list of classificationIds that can be used in an event call.
  */
 async function getSubCategoriesForSegment(segmentName) {
-  const classifications = await fetchClassifications();
+  const classifications = await fetchClassifications(); // Fetch all classifications
 
-  // Find alle classificationer, hvor segment matcher segmentName
+  // Find all classifications where segment matches the provided segmentName
   const matchedClassifications = classifications.filter(c => 
     c.segment && c.segment.name.toLowerCase() === segmentName.toLowerCase()
   );
 
   if (!matchedClassifications || matchedClassifications.length === 0) {
-    // Hvis ingen match - returner tom streng
-    return '';
+    return '';// Return an empty string if no match is found
   }
 
-  let classificationIds = [];
+  let classificationIds = []; // Initialize an array to store classification IDs
 
-  // For alle matchende classificationer tilføj segment, genre, subGenre, type, subType hvis de findes
+  // For all matching classifications, add segment, genre, subgenre, type, subtype IDs if they exist
   for (const c of matchedClassifications) {
     if (c.segment && c.segment.id) classificationIds.push(c.segment.id);
     if (c.genre && c.genre.id) classificationIds.push(c.genre.id);
@@ -75,19 +75,19 @@ async function getSubCategoriesForSegment(segmentName) {
     if (c.subType && c.subType.id) classificationIds.push(c.subType.id);
   }
 
-  // Fjern duplikerede id'er
+  // Remove duplicate IDs
   classificationIds = [...new Set(classificationIds)];
 
-  return classificationIds.join(',');
+  return classificationIds.join(','); // Return classification IDs as a comma-separated string
 }
 
-// Funktion til at hente events baseret på brugerens GPS-placering, radius, datointerval og evt. kategori (oprindelig)
+// Function to fetch events based on user's GPS location, radius, date range, and optionally a category
 const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startDateTime, endDateTime, category) => {
   const key = `events_${userLatitude}_${userLongitude}_${radius}_${startDateTime}_${endDateTime}_${category}`;
   const cachedEvents = myCache.get(key);
 
   if (cachedEvents) {
-    return cachedEvents;
+    return cachedEvents; // Return cached events if available
   }
 
   const apiKey = process.env.TICKETMASTER_API_KEY;
@@ -102,7 +102,7 @@ const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startD
     sort: 'date,asc',
   };
 
-  // Hvis category er sat, tilføj classificationName
+  // Add category to the parameters if specified
   if (category) {
     params.classificationName = category;
   }
@@ -118,9 +118,9 @@ const fetchEventsByLocation = async (userLatitude, userLongitude, radius, startD
   }
 };
 
-// Funktion til at hente events for samme dag med radius ~12.42 miles
+// Function to fetch events for the same day within a specified radius (about 24.85 miles - 40 km)
 const fetchSameDayEvents = async (userLatitude, userLongitude) => {
-  const radius = Math.floor(12.42);  
+  const radius = Math.floor(24.85);  
   const currentDate = new Date();
   const startDate = new Date(currentDate);
   startDate.setHours(0, 0, 0, 0);
@@ -135,6 +135,7 @@ const fetchSameDayEvents = async (userLatitude, userLongitude) => {
   return await fetchEventsByLocation(userLatitude, userLongitude, radius, dateRange.start, dateRange.end);
 };
 
+// Function to fetch events based on a keyword, user's GPS location, radius, and date range
 const fetchEventsByKeyword = async (keyword, userLatitude, userLongitude, radius, startDateTime, endDateTime) => {
   const apiKey = process.env.TICKETMASTER_API_KEY;
   const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
@@ -158,15 +159,15 @@ const fetchEventsByKeyword = async (keyword, userLatitude, userLongitude, radius
   }
 };
 
-// Funktion til at hente kommende begivenheder (op til en uge frem) med radius ~24.85 miles
+// Function to fetch upcoming events (up to a week ahead) within a specified radius (about 24.85 miles - 40 km)
 const fetchUpcomingEvents = async (userLatitude, userLongitude) => {
   const radius = Math.floor(24.85); 
   const currentDate = new Date();
 
   const startDate = new Date(currentDate);
-  startDate.setDate(currentDate.getDate() + 1);  // Start fra i morgen
+  startDate.setDate(currentDate.getDate() + 1);   // Start from tomorrow
   const endDate = new Date(startDate);
-  endDate.setDate(startDate.getDate() + 7);  // 7 dage frem
+  endDate.setDate(startDate.getDate() + 7);  // Up to 7 days ahead
 
   const dateRange = {
     start: startDate.toISOString().slice(0, -5) + "Z",
@@ -176,7 +177,7 @@ const fetchUpcomingEvents = async (userLatitude, userLongitude) => {
   return await fetchEventsByLocation(userLatitude, userLongitude, radius, dateRange.start, dateRange.end);
 };
 
-// Controller-funktion til at hente specifik event
+// Controller function to retrieve a specific event
 const getEventById = async (req, res) => {
   const { eventId } = req.params;
   const apiKey = process.env.TICKETMASTER_API_KEY;
@@ -194,7 +195,7 @@ const getEventById = async (req, res) => {
   }
 };
 
-// Helper til at formatere eventdetaljer
+// Helper function to format event details
 const formatEventDetails = (data) => {
   const venue = data._embedded?.venues[0];
   const image = data.images.find(image => image.ratio === '16_9');
@@ -215,7 +216,7 @@ const formatEventDetails = (data) => {
   };
 };
 
-// Funktion til at hente koordinater fra adresse
+// Function to get coordinates from an address using the Google Geocoding API
 const getCoordinatesFromAddress = async (address) => {
   try {
     const geocodingApiKey = process.env.API_KEY_GEOCODING;  
@@ -240,13 +241,13 @@ const getCoordinatesFromAddress = async (address) => {
   }
 };
 
-// (Fra tidligere kode - hvis du ønsker at bruge det til specifik hovedkategori-kald)
+// Function to fetch events based on user's GPS coordinates, radius, time range, and main category
 const fetchEventsByCategory = async (userLatitude, userLongitude, radius, startDateTime, endDateTime, mainCategory) => {
   try {
     const apiKey = process.env.TICKETMASTER_API_KEY;
     const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
 
-    // Her kunne du bruge getSubCategoriesForSegment i stedet for getSubCategories hvis ønsket
+    // Optionally use getSubCategoriesForSegment to fetch specific subcategory IDs instead of getSubCategories
     const subCategories = await getSubCategories(mainCategory);
 
     const params = {
@@ -267,9 +268,9 @@ const fetchEventsByCategory = async (userLatitude, userLongitude, radius, startD
   }
 };
 
-// Eksempel på en tidligere funktion til at hente "mock" subkategorier
+// Mock function to fetch subcategories based on main category (e.g., music, sports)
 const getSubCategories = async (mainCategory) => {
-  // Mock implementation, du kan tilpasse efter behov
+  // Example implementation, adjust as needed
   if (mainCategory === 'music') {
     return 'music,rock,pop';
   } else if (mainCategory === 'sports') {
@@ -278,12 +279,12 @@ const getSubCategories = async (mainCategory) => {
   return mainCategory;
 };
 
-// Ny funktion til at hente events baseret på flere top-kategorier
+// Function to fetch events based on multiple top categories
 async function fetchEventsByCategories(userLatitude, userLongitude, radius, startDateTime, endDateTime, mainCategories) {
   const apiKey = process.env.TICKETMASTER_API_KEY;
   const apiUrl = 'https://app.ticketmaster.com/discovery/v2/events.json';
 
-  // Hent alle relevante classificationId'er for alle valgte kategorier
+  // Fetch all relevant classification IDs for the selected categories
   let allClassificationIds = [];
   for (const category of mainCategories) {
     const categoryIds = await getSubCategoriesForSegment(category);
@@ -292,7 +293,7 @@ async function fetchEventsByCategories(userLatitude, userLongitude, radius, star
     }
   }
 
-  // Kombiner alle classificationIds i ét kommasepareret string
+  // Combine all classification IDs into a single comma-separated string
   const classificationIdString = allClassificationIds.join(',');
 
   const params = {
@@ -315,6 +316,7 @@ async function fetchEventsByCategories(userLatitude, userLongitude, radius, star
   }
 }
 
+// Function to get events based on query parameters (latitude, longitude, event date, categories, radius)
 const getEvents = async (req, res) => {
   const { latitude, longitude, eventDate, categories, radius } = req.query;
   const categoryArray = categories ? categories.split(',') : [];
@@ -322,10 +324,10 @@ const getEvents = async (req, res) => {
   try {
     let events = [];
 
-    let usedRadius = radius ? Math.floor(radius) : 24; // Hvis ingen radius, sæt en standard
+    let usedRadius = radius ? Math.floor(radius) : 24.85; // Default radius if none specified
 
     let startDate, endDate;
-    // Tjek om eventDate er "sameDay", "upcoming" eller en specifik dato
+    // Check if eventDate is "sameDay", "upcoming" or a specific date
     if (eventDate === 'sameDay') {
       const currentDate = new Date();
       startDate = new Date(currentDate);
@@ -339,7 +341,7 @@ const getEvents = async (req, res) => {
       endDate = new Date(startDate);
       endDate.setDate(startDate.getDate() + 7);
     } else {
-      // Forvent at eventDate er en 'YYYY-MM-DD' string
+      // Expect eventDate to be a 'YYYY-MM-DD' string
       const chosenDate = new Date(eventDate + "T00:00:00Z");
       if (isNaN(chosenDate)) {
         return res.status(400).json({message: "Invalid date format"});
@@ -375,6 +377,7 @@ const getEvents = async (req, res) => {
   }
 };
 
+// Function to fetch events by a keyword and optionally by country code
 const getEventsKeyword = async (req, res) => {
   const { keyword, countryCode } = req.query;  // Læs countryCode, hvis givet
 
@@ -391,7 +394,7 @@ const getEventsKeyword = async (req, res) => {
       keyword: keyword
     };
 
-    // Tilføj landekode, men kun hvis den er sendt med
+    // Add country code if provided
     if (countryCode) {
       params.countryCode = countryCode;
     }
@@ -410,7 +413,7 @@ const getEventsKeyword = async (req, res) => {
   }
 };
 
-// Eksporter alle funktioner
+// Export all functions
 module.exports = { 
   fetchEventsByLocation, 
   fetchSameDayEvents, 

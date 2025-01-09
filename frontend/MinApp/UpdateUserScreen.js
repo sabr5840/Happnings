@@ -16,13 +16,16 @@ import { faUser, faHeart } from '@fortawesome/free-solid-svg-icons';
 import { API_URL } from '@env';
 
 const UpdateUserScreen = ({ navigation }) => {
-  const [userId, setUserId] = useState(null);
-  const [authToken, setAuthToken] = useState(null);
-  const [updatedName, setUpdatedName] = useState('');
-  const [updatedEmail, setUpdatedEmail] = useState('');
-  const [updatedPassword, setUpdatedPassword] = useState('**********'); // Default password shown as "****"
-  const [loading, setLoading] = useState(false);
 
+  // State variables to store user data and loading status
+  const [userId, setUserId] = useState(null); // User ID retrieved from AsyncStorage
+  const [authToken, setAuthToken] = useState(null); // Auth token retrieved from AsyncStorage
+  const [updatedName, setUpdatedName] = useState(''); // User's updated name
+  const [updatedEmail, setUpdatedEmail] = useState(''); // User's updated email
+  const [updatedPassword, setUpdatedPassword] = useState('**********'); // Default password shown as "****"
+  const [loading, setLoading] = useState(false); // Loading state for API calls
+
+  // Fetch user data from AsyncStorage on component mount
   useEffect(() => {
     const fetchUserData = async () => {
       const id = await AsyncStorage.getItem('userId');
@@ -31,16 +34,18 @@ const UpdateUserScreen = ({ navigation }) => {
       setAuthToken(token);
 
       if (id && token) {
-        fetchUserDetails(id, token);
+        fetchUserDetails(id, token); // Fetch user details if ID and token are available
       }
     };
 
     fetchUserData();
   }, []);
 
+
+  // Function to fetch user details from the server
   const fetchUserDetails = async (id, token) => {
     try {
-      setLoading(true);
+      setLoading(true); // Show loading indicator
       const response = await fetch(`${API_URL}/api/users/${id}`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -48,6 +53,8 @@ const UpdateUserScreen = ({ navigation }) => {
       const json = await response.json();
 
       if (response.ok) {
+        
+        // Populate the state with the fetched user details
         setUpdatedName(json.Name || '');
         setUpdatedEmail(json.Email || '');
       } else {
@@ -56,11 +63,14 @@ const UpdateUserScreen = ({ navigation }) => {
     } catch (error) {
       console.error('Error fetching user details:', error);
     } finally {
-      setLoading(false);
+      setLoading(false); // Hide loading indicator
     }
   };
 
+    // Function to handle updating the user's information
   const handleUpdateUser = async () => {
+    
+    // Validate email and password inputs
     if (!updatedEmail.includes('@')) {
       Alert.alert('Error', 'Please enter a valid email address.');
       return;
@@ -71,7 +81,7 @@ const UpdateUserScreen = ({ navigation }) => {
     }
 
     try {
-      setLoading(true);
+      setLoading(true); // Show loading indicator
       const response = await fetch(`${API_URL}/api/users/${userId}`, {
         method: 'PUT',
         headers: {
@@ -89,7 +99,7 @@ const UpdateUserScreen = ({ navigation }) => {
 
       if (response.ok) {
         Alert.alert('Success', 'Your information has been updated successfully.');
-        navigation.goBack();
+        navigation.goBack();  // Navigate back after successful update
       } else {
         Alert.alert('Error', json.message || 'Failed to update information.');
       }
@@ -97,7 +107,7 @@ const UpdateUserScreen = ({ navigation }) => {
       console.error('Update user error:', error);
       Alert.alert('Error', 'Network error occurred.');
     } finally {
-      setLoading(false);
+      setLoading(false); // Hide loading indicator
     }
   };
 

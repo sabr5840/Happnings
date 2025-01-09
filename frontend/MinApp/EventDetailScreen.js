@@ -11,14 +11,15 @@ import * as Sharing from 'expo-sharing';
 import { Share } from 'react-native';
 
 const EventDetailScreen = ({ navigation, route }) => {
-    const { eventId } = route.params;
-    const [event, setEvent] = useState(null);
-    const [liked, setLiked] = useState(false);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState(null);
-    const [modalVisible, setModalVisible] = useState(false);
-    const scaleAnim = useRef(new Animated.Value(0)).current;
+    const { eventId } = route.params; // Extract eventId passed from the previous screen
+    const [event, setEvent] = useState(null); // Store event details
+    const [liked, setLiked] = useState(false); // Track like status
+    const [loading, setLoading] = useState(true); // Manage loading state
+    const [error, setError] = useState(null); // Track errors
+    const [modalVisible, setModalVisible] = useState(false); // Modal visibility for reminders
+    const scaleAnim = useRef(new Animated.Value(0)).current;  // Animation reference for modal
 
+    // Function to handle sharing the event details
     const onShare = async () => {
         if (event) {
             const message = `🎉 Get ready for an unforgettable evening! 🎉
@@ -32,7 +33,7 @@ Come and experience the magic at ${event.venueAddress.address}, ${event.venueAdd
 Hurry up – this is guaranteed to be an experience you won’t want to miss!`;
     
             try {
-                await Share.share({ message });
+                await Share.share({ message }); // Share event details via native sharing
             } catch (error) {
                 console.error('Error sharing', error);
                 alert('Error during sharing: ' + error.message);
@@ -43,29 +44,29 @@ Hurry up – this is guaranteed to be an experience you won’t want to miss!`;
     };
     
     
-    // Hent event-detaljer og tjek liked-status
+    // Fetch event details and check if it is already liked
     useEffect(() => {
         const fetchEventDetail = async () => {
             try {
-                const response = await fetch(`${API_URL}/api/events/${eventId}`);
+                const response = await fetch(`${API_URL}/api/events/${eventId}`);  // Fetch event data
                 const data = await response.json();
-                if (!response.ok) throw new Error(data.message);
+                if (!response.ok) throw new Error(data.message); // Handle API errors
                 setEvent(data);
-                await checkIfLiked(); // Tjek liked-status
+                await checkIfLiked(); // Check if event is liked
             } catch (error) {
-                setError(error.message);
+                setError(error.message); // Set error state
             } finally {
-                setLoading(false);
+                setLoading(false); // Stop loading indicator
             }
         };
 
-        fetchEventDetail();
+        fetchEventDetail(); // Call function on component mount
     }, [eventId]);
 
-    // Tjek om event allerede er liket
+    // Check if the event is liked
     const checkIfLiked = async () => {
         try {
-            const token = await AsyncStorage.getItem('authToken');
+            const token = await AsyncStorage.getItem('authToken'); // Get user token
             if (!token) return;
 
             const response = await fetch(`${API_URL}/api/favorites`, {
@@ -74,7 +75,7 @@ Hurry up – this is guaranteed to be an experience you won’t want to miss!`;
 
             const favorites = await response.json();
             if (response.ok) {
-                const isLiked = favorites.some((fav) => fav.eventId === eventId);
+                const isLiked = favorites.some((fav) => fav.eventId === eventId);  // Check if event exists in favorites
                 setLiked(isLiked);
             }
         } catch (error) {
@@ -82,18 +83,18 @@ Hurry up – this is guaranteed to be an experience you won’t want to miss!`;
         }
     };
 
-    // Håndter toggle af like-status
+    // Toggle like status of the event
     const toggleLike = async () => {
         try {
-            const userToken = await AsyncStorage.getItem('authToken');
+            const userToken = await AsyncStorage.getItem('authToken'); // Get user token
             if (!userToken) throw new Error('User token is missing');
 
-            const method = liked ? 'DELETE' : 'POST';
+            const method = liked ? 'DELETE' : 'POST'; // Determine HTTP method
             const url = liked
                 ? `${API_URL}/api/favorites/${eventId}`
                 : `${API_URL}/api/favorites`;
 
-            const body = liked ? null : JSON.stringify({ eventId });
+            const body = liked ? null : JSON.stringify({ eventId }); // Determine HTTP method
 
             const response = await fetch(url, {
                 method,
@@ -107,13 +108,13 @@ Hurry up – this is guaranteed to be an experience you won’t want to miss!`;
             const result = await response.json();
             if (!response.ok) throw new Error(result.message || 'Failed to update favorite');
 
-            setLiked(!liked);
+            setLiked(!liked); // Update like state
         } catch (error) {
             console.error('Error toggling favorite:', error.message);
         }
     };
 
-    // Åbn/luk animation for modal
+    // Handle modal animation for reminders
     useEffect(() => {
         if (modalVisible) {
             Animated.timing(scaleAnim, {
@@ -122,10 +123,12 @@ Hurry up – this is guaranteed to be an experience you won’t want to miss!`;
                 useNativeDriver: true,
             }).start();
         } else {
-            scaleAnim.setValue(0);
+            scaleAnim.setValue(0); // Reset animation
         }
     }, [modalVisible]);
 
+
+    // Render loading or error state
     if (loading) return <Text>Loading...</Text>;
     if (error) return <Text>Error: {error}</Text>;
 

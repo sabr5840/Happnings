@@ -1,16 +1,15 @@
 const express = require('express');
-const session = require('express-session'); // Tilføj express-session
-const { admin, db } = require('./config/firebaseAdmin'); // Korrekt sti til firebaseAdmin.js
-const userRoutes = require('./routes/userRoutes'); // Importer userRoutes
-const eventRoutes = require('./routes/eventRoutes'); // Importer eventRoutes
-const categoryRoutes = require('./routes/categoryRoutes'); // Importer categoryRoutes
-const favoriteRoutes = require('./routes/favoriteRoutes'); // Importer eventRoutes
-const notificationRoutes = require('./routes/notificationRoutes'); // Importer notificationRoutes
-const { sendPushNotification } = require('./utils/pushNotificationHelper');
-const rateLimit = require('express-rate-limit');
+const session = require('express-session'); 
+const { admin, db } = require('./config/firebaseAdmin'); 
+const userRoutes = require('./routes/userRoutes'); 
+const eventRoutes = require('./routes/eventRoutes'); 
+const categoryRoutes = require('./routes/categoryRoutes'); 
+const favoriteRoutes = require('./routes/favoriteRoutes'); 
+const rateLimit = require('express-rate-limit'); // Rate limiting middleware
 
-require('dotenv').config(); // Tilføj miljøvariabler fra .env-filen
+require('dotenv').config(); // Load environment variables
 
+//test use only - remove when in production 
 console.log('Firebase API Key:', process.env.FIREBASE_API_KEY);
 console.log('Firebase Auth Domain:', process.env.FIREBASE_AUTH_DOMAIN);
 console.log('Ticketmaster API Key:', process.env.TICKETMASTER_API_KEY);
@@ -19,31 +18,31 @@ console.log('Geocoding API Key:', process.env.API_KEY_GEOCODING);
 
 const app = express();
 
-// Rate Limiter Configuration
+// Rate Limiting Configuration
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100 // Limit each IP to 100 requests per windowMs
+  max: 100 // Max 100 requests per windowMs per IP
 });
 
-// Apply the rate limiting middleware to all requests
+// Apply rate limiter to all requests
 app.use(apiLimiter);
 
 
 // Middleware
-app.use(express.json()); // Parser JSON
+app.use(express.json());  // Parse incoming JSON requests
 app.use(
   session({
-    secret: process.env.SESSION_SECRET || 'your_secret_key', // Brug din SESSION_SECRET fra .env
-    resave: false, // Gem ikke sessionen igen, hvis der ikke er ændringer
-    saveUninitialized: true, // Gem sessioner, selvom de ikke er initialiseret
-    cookie: { secure: false }, // Sæt secure til true, hvis du bruger HTTPS
+    secret: process.env.SESSION_SECRET || 'your_secret_key', // Use secure secret from .env
+    resave: false, // Avoid resaving unchanged sessions
+    saveUninitialized: true, // Save uninitialized sessions
+    cookie: { secure: false }, // Set to true if HTTPS is enabled
   })
 );
 
-// Test Firebase - Liste brugere
+// Test Routes for Firebase and Firestore
 app.get('/test-firebase', async (req, res) => {
   try {
-    const users = await admin.auth().listUsers();
+    const users = await admin.auth().listUsers(); // Fetch all Firebase users
     res.status(200).json(users.users);
   } catch (error) {
     console.error('Fejl ved Firebase:', error);
@@ -51,11 +50,11 @@ app.get('/test-firebase', async (req, res) => {
   }
 });
 
-// Test Firestore - Hent data fra "favorite" collection
+// Test Firestore - fetch data from "favorite" collection
 app.get('/test-firestore', async (req, res) => {
   try {
-    const db = admin.firestore();
-    const snapshot = await db.collection('favorite').get();
+    const db = admin.firestore(); // Access Firestore database
+    const snapshot = await db.collection('favorite').get(); // Fetch "favorite" collection
     const favorites = snapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
     res.status(200).json(favorites);
   } catch (error) {
@@ -64,34 +63,32 @@ app.get('/test-firestore', async (req, res) => {
   }
 });
 
-// Brug ruterne
-app.use('/api/users', userRoutes);
-app.use('/api/categories', categoryRoutes); 
-app.use('/api/events', eventRoutes);
-app.use('/api/favorites', favoriteRoutes);
-app.use('/api/notifications', notificationRoutes);
+// Modular Routes
 
-// Logging middleware
+// User management
+app.use('/api/users', userRoutes);
+
+// Category management
+app.use('/api/categories', categoryRoutes); 
+
+// Event management
+app.use('/api/events', eventRoutes);
+
+// Favorites management
+app.use('/api/favorites', favoriteRoutes);
+
+
+// Logging Middleware
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
 });
 
-// Tilføj et endpoint til at udløse en push-notifikation
-app.get('/test-push', async (req, res) => {
-  const testToken = 'dit_test_fcm_token_her'; // Erstat dette med et gyldigt FCM token
-  try {
-    const response = await sendPushNotification(testToken, 'Test Title', 'This is a test push notification.');
-    res.status(200).json({ message: 'Push notification sent successfully', response });
-  } catch (error) {
-    res.status(500).json({ message: 'Failed to send push notification', error: error.message });
-  }
-});
 
-
-// Start server
+// Start server 
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
+  //test use only - remove when in production 
   console.log('Firebase Config Loaded:', {
     apiKey: process.env.FIREBASE_API_KEY,
     authDomain: process.env.FIREBASE_AUTH_DOMAIN,

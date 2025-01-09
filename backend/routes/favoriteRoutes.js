@@ -1,16 +1,19 @@
 const express = require('express');
 const router = express.Router();
-const authMiddleware = require('../middleware/authMiddleware');
-const FavoriteController = require('../controllers/FavoriteController');
+const authMiddleware = require('../middleware/authMiddleware'); // Middleware to ensure user authentication
+const FavoriteController = require('../controllers/FavoriteController'); // Controller to handle favorite-related operations
 
-
-// Rute til at tilføje event til favorites
+// Route to add an event to the user's favorites
+// Protected by authMiddleware to ensure only authenticated users can perform this action
 router.post('/', authMiddleware, FavoriteController.addToFavorite);
 
-// Rute til at hente alle favorit events
+// Route to fetch all favorite events for the authenticated user
+// Protected by authMiddleware to restrict access to the user's own favorites
 router.get('/', authMiddleware, FavoriteController.getFavorite);
 
-// Rute til at fjerne event fra favorites
+// Route to remove a specific event from the user's favorites
+// Requires the favorite event ID as a parameter and is protected by authMiddleware
 router.delete('/:favoriteId', authMiddleware, FavoriteController.removeFromFavorite);
 
+// Export the router for use in the main application
 module.exports = router;

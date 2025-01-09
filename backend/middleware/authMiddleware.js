@@ -1,33 +1,39 @@
-const { admin } = require('../config/firebaseAdmin');
+const { admin } = require('../config/firebaseAdmin'); // Import Firebase Admin SDK instance
 
+// Authentication middleware
 const authMiddleware = async (req, res, next) => {
-  // Log alle indkommende headers for at debugge eventuelle problemer
+  // Log all incoming headers for debugging purposes
   console.log('AuthMiddleware: Incoming request headers:', req.headers);
 
-  const authHeader = req.headers.authorization;
+  const authHeader = req.headers.authorization; // Extract the Authorization header
   
+  // Check if the Authorization header is missing or improperly formatted
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     console.log('AuthMiddleware: No valid Authorization header provided');
     return res.status(401).json({ message: 'No token provided' });
   }
 
-  const token = authHeader.split('Bearer ')[1].trim(); // Sikrer ingen førende/tailende mellemrum
-  console.log('AuthMiddleware: Full Token:', token); // Logs the full JWT to check formatting and completeness
+  // Extract the token from the Authorization header
+  const token = authHeader.split('Bearer ')[1].trim(); // Remove "Bearer " and any extra spaces
+  console.log('AuthMiddleware: Full Token:', token); // Log the token for debugging purposes
 
   try {
-    // Verificer ID-token med Firebase Admin SDK
-    const decodedToken = await admin.auth().verifyIdToken(token);
+    // Verify the Firebase ID token using the Firebase Admin SDK
+    const decodedToken = await admin.auth().verifyIdToken(token); // Log decoded token for verification
     console.log('AuthMiddleware: Decoded Token:', decodedToken);
 
-    // Gem decoded token-info på request-objektet
+    // Attach the decoded token to the `req` object for use in subsequent handlers
     req.user = decodedToken;
 
-    // Gå videre til næste middleware eller controller
+    // Call the next middleware or route handler
     next();
   } catch (error) {
+    
+    // Log errors encountered during token verification
     console.error('AuthMiddleware: Error verifying token:', error);
     return res.status(401).json({ message: 'Unauthorized', error: error.message });
   }
 };
 
+// Export the middleware for use in other parts of the application
 module.exports = authMiddleware;

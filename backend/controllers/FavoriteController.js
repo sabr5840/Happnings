@@ -4,9 +4,9 @@ const { format, parseISO } = require('date-fns');
 const { enUS } = require('date-fns/locale');
 const { formatDistanceStrict, formatRelative } = require('date-fns');
 
-// Function to get day suffix (e.g., 1st, 2nd, 3rd)
+// Function to append ordinal suffixes (e.g., 1st, 2nd, 3rd) to day numbers
 const getDayWithSuffix = (day) => {
-  if (day > 3 && day < 21) return `${day}th`;
+  if (day > 3 && day < 21) return `${day}th`; // Handles exceptions for 11th to 13th
   switch (day % 10) {
     case 1: return `${day}st`;
     case 2: return `${day}nd`;
@@ -15,7 +15,7 @@ const getDayWithSuffix = (day) => {
   }
 };
 
-// Add an event to favorite
+// Function to add an event to user favorites
 exports.addToFavorite = async (req, res) => {
 
   const userId = req.user?.uid;  // Extract user ID from the authenticated token
@@ -144,15 +144,16 @@ exports.getFavorite = async (req, res) => {
   }
 };
 
+// Function to remove an event from user's favorites
 exports.removeFromFavorite = async (req, res) => {
-  const userId = req.user.uid; // Hent bruger-ID fra decoded token
-  const { favoriteId } = req.params; // favoriteId er egentlig eventId her
+  const userId = req.user.uid; // Fetch user-ID from token
+  const { favoriteId } = req.params; // favoriteId is used as eventId here
 
   try {
     console.log('Event ID from request:', favoriteId);
     console.log('User ID from token:', userId);
 
-    // Find dokumentet med eventId og userId
+    // Locate the document to delete
     const snapshot = await db.collection('favorites')
       .where('userId', '==', userId)
       .where('eventId', '==', favoriteId)
@@ -163,7 +164,7 @@ exports.removeFromFavorite = async (req, res) => {
       return res.status(404).json({ message: 'Favorite not found' });
     }
 
-    // Slet det første matchende dokument
+    // Delete the first matching document
     const docId = snapshot.docs[0].id;
     await db.collection('favorites').doc(docId).delete();
 

@@ -9,30 +9,39 @@ import {
   Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome'; 
-import { API_URL } from '@env'; // Importer API_URL fra dine miljøvariabler
-import AsyncStorage from '@react-native-async-storage/async-storage';  // Tilføj dette import
+import { API_URL } from '@env'; // Import the API URL from environment variables
+import AsyncStorage from '@react-native-async-storage/async-storage';  // Import for storing user data locally
 
 
 const LoginScreen = ({ navigation }) => {
+
+  // State variables for storing user input
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Function to handle user login
   const handleLogin = async () => {
     try {
+
+      // Sending a POST request to the login API endpoint
       const response = await fetch(`${API_URL}/api/users/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password }),  // Include email and password in the request body
       });
-      const json = await response.json();
+      const json = await response.json(); // Parse the response JSON
       if (response.status === 200) {
+
+        // If login is successful
         console.log('Login success:', json);
-        await AsyncStorage.setItem('userId', json.userId);  // Gem brugerens ID
-        await AsyncStorage.setItem('authToken', json.token);  // Gem brugerens token
+        await AsyncStorage.setItem('userId', json.userId);  // Save the user ID in local storage
+        await AsyncStorage.setItem('authToken', json.token);  // Save the authentication token
         navigation.navigate('Home');
       } else {
+
+        // If login fails, show an alert with the error message
         Alert.alert('Login Failed', json.message);
       }
     } catch (error) {

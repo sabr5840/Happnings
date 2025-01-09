@@ -9,14 +9,19 @@ import {
   Alert
 } from 'react-native';
 import Icon from 'react-native-vector-icons/FontAwesome'; 
-import { API_URL } from '@env'; // Importer API_URL fra dine miljøvariabler
+import { API_URL } from '@env'; 
 
 const SignUpScreen = ({ navigation }) => {
+
+  // State variables to store user input
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
+  // Function to handle user registration
   const handleSignUp = async () => {
+
+    // Validate input fields
     if (!name.trim()) {
       Alert.alert('Validation Error', 'Please enter your full name.');
       return;
@@ -30,21 +35,24 @@ const SignUpScreen = ({ navigation }) => {
       return;
     }
   
+    // Send a POST request to the signup endpoint
     try {
       const response = await fetch(`${API_URL}/api/users/register`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
+          'Content-Type': 'application/json', // Inform the server about the data format
         },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify({ name, email, password }), // Pass the user's input
       });
-      const json = await response.json();
-      console.log('Signup response:', json);  // Log the response for debugging
+      const json = await response.json();  // Parse the server's response
+      console.log('Signup response:', json);  // Log the response for debugging purposes
   
       if (response.ok) {
+
+        // If the signup is successful
         console.log('Signup success:', json);
         Alert.alert('Signup Success', 'User registered successfully');
-        navigation.navigate('Home'); // Navigate to Home upon success
+        navigation.navigate('Home'); // Navigate to the Home screen
       } else {
         // Check for specific error code in the JSON response
         if (json.error && json.error.code === 'auth/email-already-in-use') {

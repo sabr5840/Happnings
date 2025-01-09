@@ -7,66 +7,67 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Animated } from 'react-native';
 
 const FavoriteListScreen = ({ navigation }) => {
-  const [favorites, setFavorites] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [favorites, setFavorites] = useState([]); // State to store favorite events
+  const [loading, setLoading] = useState(true); // State to handle loading state
 
   useEffect(() => {
-    fetchFavorites();
+    fetchFavorites(); // Fetch favorites when the component is mounted
   }, []);
 
-  // Funktion til at hente favoritter fra backend
+  // Function to fetch favorites from the backend
   const fetchFavorites = async () => {
     try {
-      const token = await AsyncStorage.getItem('authToken');
+      const token = await AsyncStorage.getItem('authToken'); // Function to fetch favorites from the backend
       if (!token) throw new Error('User token is missing');
 
       const response = await fetch(`${API_URL}/api/favorites`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${token}` }, // Pass token in the Authorization header
       });
 
       const data = await response.json();
       if (!response.ok) throw new Error(data.message || 'Failed to fetch favorites');
 
-      setFavorites(data);
+      setFavorites(data); // Update the state with the fetched data
     } catch (error) {
       console.error('Error fetching favorites:', error.message);
-      Alert.alert('Error', 'Failed to load favorites');
-    } finally {
-      setLoading(false);
+      Alert.alert('Error', 'Failed to load favorites'); // Show an error alert
+    } finally { 
+      setLoading(false); // Set loading state to false
     }
   };
 
-  // Funktion til at slette en favorit
+  // Function to delete a favorite event
   const deleteFavorite = (favoriteId) => {
-    const fadeAnim = new Animated.Value(1);
+    const fadeAnim = new Animated.Value(1); // Create an animated value for fading
 
     Animated.timing(fadeAnim, {
-      toValue: 0,
-      duration: 800,
+      toValue: 0, // Animate to fully transparent
+      duration: 800, // Duration of the animation
       useNativeDriver: true,
     }).start(async () => {
       try {
-        const token = await AsyncStorage.getItem('authToken');
+        const token = await AsyncStorage.getItem('authToken'); // Retrieve authentication token
         if (!token) throw new Error('User token is missing');
 
         const response = await fetch(`${API_URL}/api/favorites/${favoriteId}`, {
-          method: 'DELETE',
-          headers: { Authorization: `Bearer ${token}` },
+          method: 'DELETE', // Use DELETE method
+          headers: { Authorization: `Bearer ${token}` }, // Pass token in the Authorization header
         });
 
         const result = await response.json();
         if (!response.ok) throw new Error(result.message || 'Failed to delete favorite');
 
+        // Remove the deleted favorite from the list
         setFavorites((prevFavorites) => prevFavorites.filter((fav) => fav.eventId !== favoriteId));
       } catch (error) {
         console.error('Error deleting favorite:', error.message);
       }
     });
 
-    return fadeAnim;
+    return fadeAnim; // Return the animated value
   };
 
-  // Render en favorit-event
+  // Function to render a single favorite item
   const renderFavoriteItem = ({ item }) => {
     return (
       <TouchableOpacity

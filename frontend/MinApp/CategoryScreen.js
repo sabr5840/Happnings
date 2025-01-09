@@ -4,17 +4,18 @@ import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faUser, faHeart } from '@fortawesome/free-solid-svg-icons';
 import { API_URL } from '@env';
 
-// Global cache til kategorier
+// Global cache for categories to avoid refetching
 let cachedCategories = null;
 
 const CategoryScreen = ({ navigation, route }) => {
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [categories, setCategories] = useState([]); // State to store fetched categories
+  const [loading, setLoading] = useState(true); // State to manage loading indicator
 
-  // Her henter vi evt. allerede valgte kategorier fra route.params (hvis Home sendte dem)
+  // Retrieve selected categories from route.params, if provided
   const initiallySelected = route.params?.selectedCategories || [];
   const [selectedCategories, setSelectedCategories] = useState(initiallySelected);
 
+  // Icons for specific category names
   const categoryIcons = {
     Miscellaneous: '🎭 🎡 🍽️ 🎲',
     Sports: '🏅 ⚽ 🚴 🤼',
@@ -23,19 +24,24 @@ const CategoryScreen = ({ navigation, route }) => {
     Film: '🎥 🍿 🌌 😂',
   };
 
+  // Function to reset selected categories
   const resetCategories = () => {
-    setSelectedCategories([]); // Nulstiller valgte kategorier
+    setSelectedCategories([]); // Clears the selected categories
   };
 
+  // Fetch categories on component mount
   useEffect(() => {
     if (cachedCategories) {
+
+      // Use cached data if available
       setCategories(cachedCategories);
       setLoading(false);
     } else {
-      fetchCategories();
+      fetchCategories(); // Fetch categories from API if not cached
     }
   }, []);
 
+  // Fetch categories from the API
   const fetchCategories = async () => {
     try {
       const response = await fetch(`${API_URL}/api/categories`);
@@ -45,21 +51,25 @@ const CategoryScreen = ({ navigation, route }) => {
         throw new Error('Failed to fetch categories');
       }
 
+      // Filter out undefined categories and sort Miscellaneous to the end
       const filteredCategories = data
         .filter((category) => category.name !== 'Undefined')
         .sort((a, b) => (a.name === 'Miscellaneous' ? 1 : b.name === 'Miscellaneous' ? -1 : 0));
 
-      cachedCategories = filteredCategories;
-      setCategories(filteredCategories);
+      cachedCategories = filteredCategories; // Cache the fetched categories
+      setCategories(filteredCategories); // Update state with categories
     } catch (error) {
       console.error('Error fetching categories:', error.message);
     } finally {
-      setLoading(false);
+      setLoading(false); // Stop loading spinner
     }
   };
 
+  // Toggle category selection
   const toggleCategory = (categoryName) => {
     setSelectedCategories(prevSelected => {
+
+      // Add or remove category from the selected list
       if (prevSelected.includes(categoryName)) {
         return prevSelected.filter(c => c !== categoryName);
       } else {
@@ -68,9 +78,10 @@ const CategoryScreen = ({ navigation, route }) => {
     });
   };
 
+  // Render each category item in the FlatList
   const renderCategory = ({ item }) => {
-    const icon = categoryIcons[item.name] || '';
-    const isSelected = selectedCategories.includes(item.name);
+    const icon = categoryIcons[item.name] || ''; // Get icon for the category
+    const isSelected = selectedCategories.includes(item.name);  // Check if the category is selected
     return (
       <TouchableOpacity 
         style={[styles.categoryCard, isSelected && styles.categoryCardSelected]}
@@ -83,6 +94,7 @@ const CategoryScreen = ({ navigation, route }) => {
     );
   };
 
+  // Display loading spinner while categories are being fetched
   if (loading) {
     return (
       <SafeAreaView style={styles.loadingContainer}>
@@ -91,8 +103,11 @@ const CategoryScreen = ({ navigation, route }) => {
     );
   }
 
+  // Handle apply button press
   const handleApply = () => {
     if (selectedCategories.length === 0) {
+
+      // Show alert if no categories are selected
       Alert.alert(
         "No Categories Selected",
         "Please select at least one category before applying.",
@@ -101,6 +116,7 @@ const CategoryScreen = ({ navigation, route }) => {
       return;
     }
 
+    // Navigate back to the Home screen with selected categories
     navigation.navigate('Home', { selectedCategories });
   };
 

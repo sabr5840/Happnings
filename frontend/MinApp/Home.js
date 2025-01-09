@@ -30,25 +30,27 @@ import { API_KEY_GEOCODING } from '@env';
 library.add(fas);
 
 const HomeScreen = ({ navigation, route }) => {
-  const [location, setLocation] = useState(null);
-  const [sameDayEvents, setSameDayEvents] = useState([]);
-  const [upcomingEvents, setUpcomingEvents] = useState([]);
-  const [selectedCategories, setSelectedCategories] = useState([]);
-  const [currentRadiusKm, setCurrentRadiusKm] = useState(40);  
-  const [distance, setDistance] = useState(40); 
-  const [showSlider, setShowSlider] = useState(false);
-  const [showCalendarModal, setShowCalendarModal] = useState(false);
-  const [customEvents, setCustomEvents] = useState([]);
-  const [selectedDate, setSelectedDate] = useState(null); // Dato bruges til at hente events efter 'Apply'
-  const [chosenDate, setChosenDate] = useState(null);    // Midlertidig dato valgt i kalenderen
-  const [searchQuery, setSearchQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
-  const [userCountryCode, setUserCountryCode] = useState('');
+  const [location, setLocation] = useState(null); // User's current location
+  const [sameDayEvents, setSameDayEvents] = useState([]); // Events happening today
+  const [upcomingEvents, setUpcomingEvents] = useState([]); // Upcoming events
+  const [selectedCategories, setSelectedCategories] = useState([]); // Selected categories for filtering
+  const [currentRadiusKm, setCurrentRadiusKm] = useState(40); // Current search radius in kilometers
+  const [distance, setDistance] = useState(40); // Value for the distance slider
+  const [showSlider, setShowSlider] = useState(false); // Toggle slider visibility
+  const [showCalendarModal, setShowCalendarModal] = useState(false); // Toggle calendar modal visibility
+  const [customEvents, setCustomEvents] = useState([]); // Events filtered by custom criteria
+  const [selectedDate, setSelectedDate] = useState(null); // Selected date for filtering
+  const [chosenDate, setChosenDate] = useState(null); // Temporary date chosen in the calendar
+  const [searchQuery, setSearchQuery] = useState(''); // User's search input
+  const [isSearching, setIsSearching] = useState(false); // Indicates if search is active
+  const [userCountryCode, setUserCountryCode] = useState(''); // User's country code
+
   const onlyDate = format(new Date(), 'yyyy-MM-dd');
 
 
-
   useEffect(() => {
+
+    // Helper function to get user's country code from their location
     const getCountry = async () => {
       if (location?.coords) {
         const { latitude, longitude } = location.coords;
@@ -63,24 +65,25 @@ const HomeScreen = ({ navigation, route }) => {
     getCountry();
   }, [location]);
 
-  // Opdater din 'Distance' knap event handler
+  // Toggle slider visibility for setting the radius
   const toggleSliderVisibility = () => {
     setShowSlider(!showSlider);
   };
 
-  // Tilføj funktion til at nulstille afstanden
+  // Reset distance slider to default value
   const resetDistance = () => {
-    setDistance(40);  // Reset til standardværdi
-    setCurrentRadiusKm(40); // Opdater også den aktuelle radius
+    setDistance(40);  // Reset to standard 
+    setCurrentRadiusKm(40); // update too normal radius
   };
   
+  // Update selected categories when navigated back from CategoryScreen
   useEffect(() => {
-    // Hvis route.params.selectedCategories er defineret, opdater state
     if (route.params?.selectedCategories) {
       setSelectedCategories(route.params.selectedCategories);
     }
   }, [route.params?.selectedCategories]);
 
+  // Request user's location and start watching their position
   useEffect(() => {
     const getLocationAsync = async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
@@ -103,6 +106,8 @@ const HomeScreen = ({ navigation, route }) => {
     getLocationAsync();
   }, []);
 
+
+  // Fetch events based on the current location, categories, and date
   useEffect(() => {
     if (location?.coords) {
       if (!selectedDate) {
@@ -116,6 +121,7 @@ const HomeScreen = ({ navigation, route }) => {
     }
   }, [location, selectedCategories, currentRadiusKm, selectedDate]);
   
+  // Fetch events using various filters (sameDay, upcoming, or custom date)
   const fetchEvents = async (eventDate, keyword = '') => {
     if (!location?.coords) {
       console.log("Location data is not available yet.");
@@ -177,17 +183,7 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
   
-  const getCountry = async () => {
-    if (location?.coords) {
-      const { latitude, longitude } = location.coords;
-      let reverseGeocode = await Location.reverseGeocodeAsync({ latitude, longitude });
-      if (reverseGeocode && reverseGeocode.length > 0) {
-        const userCountry = reverseGeocode[0].isoCountryCode; 
-        setUserCountryCode(userCountry); 
-      }
-    }
-  };
-  
+
   const clearSearch = () => {
     setSearchQuery('');  // Clears the search text
     setIsSearching(false);  // Resets the searching state
@@ -200,67 +196,100 @@ const HomeScreen = ({ navigation, route }) => {
     }
   };
 
+  // Function to fetch events based on a given address
   const fetchEventsByAddress = async (address) => {
     if (!address) return;
   
     try {
+
+      // Fetch coordinates (latitude and longitude) for the provided address
       const coords = await getCoordinatesFromAddress(address);
+      
+      // If coordinates cannot be determined, throw an error
       if (!coords) throw new Error('Unable to get coordinates for address.');
   
+      // Destructure latitude and longitude from the coordinates
       const { lat, lng } = coords;
       
-      // Send kun dato i 'YYYY-MM-DD' format
+      // Format the current date in 'YYYY-MM-DD' format
       const onlyDate = format(new Date(), 'yyyy-MM-dd');
   
+      // Construct the API URL with query parameters for the address coordinates, radius, and date
       const url = `${API_URL}/api/events?latitude=${lat}&longitude=${lng}&radius=40&eventDate=${onlyDate}`;
       console.log('URL:', url);
   
+      // Make a GET request to the events API using the constructed URL
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
           'Cache-Control': 'no-cache'
         }
       });
+      
+      // Parse the JSON response from the API
       const data = await response.json();
   
+      // If the response status is not OK, throw an error with the response details
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status} - ${data.message}`);
       }
   
       console.log('Events fetched successfully:', data);
+
+      // Return the fetched events data
       return data;
     } catch (error) {
       console.error('Error fetching events by address:', error);
+
+      // Show an alert to the user with the error message
       Alert.alert('Fetch Error', error.message);
     }
   };
   
+  // Function to fetch geographic coordinates (latitude and longitude) from an address
   const getCoordinatesFromAddress = async (address) => {
+    // Construct the URL for the Google Geocoding API, including the encoded address and API key
     const url = `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${API_KEY_GEOCODING}`;
     try {
+      
+      // Make a GET request to the Google Geocoding API
       const response = await fetch(url);
+
+      // Parse the JSON response from the API
       const data = await response.json();
+
+      // Check if the API response status is 'OK'; otherwise, throw an error
       if (data.status !== 'OK') throw new Error('Failed to get coordinates for the address.');
   
+      // Extract latitude and longitude from the API response
       const { lat, lng } = data.results[0].geometry.location;
+
+      // Return the coordinates as an object
       return { lat, lng };
     } catch (error) {
-      return null;  // Consider how you want to handle errors upstream
+
+      return null; // Return null to indicate failure; upstream logic should handle this
+
     }
   };
   
-  // Funktion til at hente events baseret på søgeord
+  // Function to fetch events based on a keyword
   const fetchEventsByKeyword = async (keyword) => {
+    
+    // Set the "isSearching" state to true to indicate a search operation is in progress
     setIsSearching(true);  
+
+    // Check if location data is available; log and exit if not
     if (!location?.coords) {
       console.log("Location data is not available yet.");
       return;
     }
   
-    // Antag at du har userCountryCode i state (du har oprettet setUserCountryCode i getCountry)
+    // Includes the encoded keyword and userCountryCode for localized searches
     const url = `${API_URL}/api/events/keyword?keyword=${encodeURIComponent(keyword)}&countryCode=${encodeURIComponent(userCountryCode)}`;
   
     try {
+      // Make a GET request to the backend API with appropriate headers
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -269,13 +298,16 @@ const HomeScreen = ({ navigation, route }) => {
         },
       });
   
+      // Parse the JSON response from the API
       const data = await response.json();
   
+      // Check if the response is not OK (status code >= 400); log and throw an error if so
       if (!response.ok) {
         console.error('HTTP Response Not OK:', response.status, response.statusText);
         throw new Error(`HTTP error! status: ${response.status}`);
       }
   
+      // Update the state with the retrieved events
       setCustomEvents(data);
     } catch (error) {
       console.error('Error fetching events by keyword:', error);
@@ -285,20 +317,21 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleSearchQuery = async (query) => {
     try {
-      // Forsøg at geocode
+      // Attempt to geocode the query to determine if it is an address
       const coords = await getCoordinatesFromAddress(query);
       if (coords) {
-        // Hvis vi kan finde coords, er det en adresse
+        
+        // If valid coordinates are returned, treat the query as an address
         console.log("Detected address query:", query);
         await fetchEventsByAddress(query);
       } else {
-        // coords === null -> geocoding fejlede, altså keyword
+        // If geocoding fails (coords === null), treat the query as a keyword
         console.log("Detected keyword query:", query);
         setIsSearching(true);
         await fetchEventsByKeyword(query);
       }
     } catch (error) {
-      // Ved en exception i geocoding, fallback til keywordsøgning
+      // If geocoding throws an error, fallback to keyword-based search
       console.log("Geocoding threw error -> fallback to keyword:", error);
       setIsSearching(true);
       await fetchEventsByKeyword(query);
@@ -306,7 +339,7 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   useEffect(() => {
-    // Nulstil eventlister når der søges
+    // reset eventlister when seachring 
     if (isSearching) {
       setSameDayEvents([]);
       setUpcomingEvents([]);
@@ -388,48 +421,64 @@ const HomeScreen = ({ navigation, route }) => {
         </TouchableOpacity>
       </View>
   
-      {/* Conditional Rendering of Search Bar and Slider */}
-      {!showSlider ? (
-        <View style={styles.searchBar}>
-        <FontAwesomeIcon icon={faMagnifyingGlass} size={20} style={[styles.icon, { marginLeft: -6 }]} />          
-            <TextInput
-            style={[styles.searchText, { paddingLeft: 5 }]} // Tilføj paddingLeft for at skubbe teksten til højre
-            placeholder="Search by artist, venue, or event..."
-            placeholderTextColor="gray" 
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onSubmitEditing={() => {
-              if (!searchQuery.trim()) {
-                Alert.alert("Please enter a search term or address.");
-                return;
-              }
-              handleSearchQuery(searchQuery.trim());
-            }}
-          />
-          {searchQuery.length > 0 && (
-            <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
-              <Text style={{ fontSize: 16, color: '#000' }}>Clear</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-      ) : (
-        <View style={{ width: '85%', alignSelf: 'center', marginTop: -10 }}>
-          <Slider
-            style={{ width: '100%', height: 40 }}
-            minimumValue={1}
-            maximumValue={100}
-            step={1}
-            value={distance}
-            onValueChange={(value) => setDistance(value)}
-            onSlidingComplete={(value) => setCurrentRadiusKm(value)}
-          />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginLeft: 145, marginTop: 5, marginBottom: 5}}>
-            <Text>{distance} km</Text>
-          </View>
-        </View>
-      )}
+    {/* Conditional Rendering of Search Bar and Slider */}
+    {!showSlider ? (
+      <View style={styles.searchBar}>
+        <FontAwesomeIcon icon={faMagnifyingGlass} size={20} style={[styles.icon, { marginLeft: -6 }]} />
+        <TextInput
+          style={[styles.searchText, { paddingLeft: 5 }]}
+          placeholder="Search by artist, venue, or event..."
+          placeholderTextColor="gray"
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          onSubmitEditing={() => {
+            if (!searchQuery.trim()) {
+              Alert.alert("Please enter a search term or address.");
+              return;
+            }
+            handleSearchQuery(searchQuery.trim());
+          }}
+        />
+        {searchQuery.length > 0 && (
+          <TouchableOpacity onPress={clearSearch} style={styles.clearButton}>
+            <Text style={{ fontSize: 16, color: '#000' }}>Clear</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+    ) : (
+      <View style={{ width: '85%', alignSelf: 'center', marginTop: -10 }}>
+        {/* Reset Distance Button */}
+        <TouchableOpacity
+          style={styles.resetButton}
+          onPress={resetDistance}
+        >
+          <Text style={styles.resetButtonText}>Reset Distance</Text>
+        </TouchableOpacity>
 
-  
+        {/* Distance Slider */}
+        <Slider
+          style={{ width: '100%', height: 40 }}
+          minimumValue={1}
+          maximumValue={100}
+          step={1}
+          value={distance}
+          onValueChange={(value) => setDistance(value)}
+          onSlidingComplete={(value) => setCurrentRadiusKm(value)}
+        />
+        <View
+          style={{
+            flexDirection: 'row',
+            justifyContent: 'space-between',
+            marginLeft: 145,
+            marginTop: 5,
+            marginBottom: 5,
+          }}
+        >
+          <Text>{distance} km</Text>
+        </View>
+      </View>
+    )}
+
       {/* Filtre og Distancer */}
       <View style={styles.iconTray}>
         <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('Category', { selectedCategories })}>
@@ -671,6 +720,16 @@ const styles = StyleSheet.create({
   logoutButton: {
     marginTop: 20,
   },
+  resetButton: {
+    alignSelf: 'flex-end',
+    marginRight: 110,
+  },
+  resetButtonText: {
+    color: 'black',
+    fontWeight: 'bold',
+    fontSize: 14,
+    textAlign: 'center',
+  },  
   section: {
     marginBottom: 180,
     paddingLeft: 30,
