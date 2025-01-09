@@ -116,64 +116,50 @@ describe('EventController', () => {
     });
   });
 
+
   describe('fetchEventsByCategory', () => {
-    it('should fetch events based on category and location parameters', async () => {
-      // Mock data for axios call
-      const mockEvents = {
-        _embedded: {
-          events: [
-            { id: '1', name: 'Category Event 1' },
-            { id: '2', name: 'Category Event 2' }
-          ]
-        }
+    it('should fetch events successfully based on given parameters', async () => {
+      // Setup
+      const params = {
+        latlong: '55.6761,12.5683',
+        radius: '10',
+        startDateTime: '2025-01-01T00:00:00Z',
+        endDateTime: '2025-01-02T00:00:00Z',
+        classifications: 'KZFzniwnSyZfZ7v7nJ'
       };
-      axios.get.mockResolvedValue({ data: mockEvents });
-  
-      // Parameters to pass to the function
-      const userLatitude = 55.6761;
-      const userLongitude = 12.5683;
-      const radius = 10; // in km
-      const startDateTime = '2020-01-01T00:00:00Z';
-      const endDateTime = '2020-01-02T00:00:00Z';
-      const category = 'music';
-  
-      // Fetch events by category
-      const events = await fetchEventsByCategory(userLatitude, userLongitude, radius, startDateTime, endDateTime, category);
-  
-      // Check if axios was called correctly
-      expect(axios.get).toHaveBeenCalledWith(
-        expect.any(String), 
-        expect.objectContaining({
-          params: expect.objectContaining({
-            latlong: `${userLatitude},${userLongitude}`,
-            radius,
-            startDateTime,
-            endDateTime,
-            classifications: expect.any(String) // This depends on the implementation of getSubCategoriesForSegment
-          })
-        })
-      );
-  
-      // Check the response
-      expect(events).toEqual(mockEvents._embedded.events);
+      const expectedResponse = { data: { _embedded: { events: ['event1', 'event2'] } } };
+
+      axios.get.mockResolvedValue(expectedResponse);
+
+      // Execute
+      const result = await fetchEventsByCategory(55.6761, 12.5683, '10', '2025-01-01T00:00:00Z', '2025-01-02T00:00:00Z', 'Music');
+
+      // Verify
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', { params });
+      expect(result).toEqual(['event1', 'event2']);
     });
-  
-    it('should handle errors from the API call', async () => {
-      // Simulate an API error
-      axios.get.mockRejectedValue(new Error('API failure'));
-  
-      // Parameters to pass to the function
-      const userLatitude = 55.6761;
-      const userLongitude = 12.5683;
-      const radius = 10; // in km
-      const startDateTime = '2020-01-01T00:00:00Z';
-      const endDateTime = '2020-01-02T00:00:00Z';
-      const category = 'music';
-  
-      // Attempt to fetch events and expect an error
-      await expect(fetchEventsByCategory(userLatitude, userLongitude, radius, startDateTime, endDateTime, category))
-        .rejects.toThrow('API failure');
+
+    it('should handle errors from the Ticketmaster API', async () => {
+      // Setup
+      axios.get.mockRejectedValue(new Error('API error'));
+
+      // Execute & Verify
+      await expect(fetchEventsByCategory(55.6761, 12.5683, '10', '2025-01-01T00:00:00Z', '2025-01-02T00:00:00Z', 'Music'))
+        .rejects.toThrow('Error fetching events from Ticketmaster');
+    });
+
+    it('should return an empty array if no events are found', async () => {
+      // Setup
+      const expectedResponse = { data: {} };
+      axios.get.mockResolvedValue(expectedResponse);
+
+      // Execute
+      const result = await fetchEventsByCategory(55.6761, 12.5683, '10', '2025-01-01T00:00:00Z', '2025-01-02T00:00:00Z', 'Music');
+
+      // Verify
+      expect(result).toEqual([]);
     });
   });
+
   
 });
