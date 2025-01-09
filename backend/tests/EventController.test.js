@@ -125,7 +125,7 @@ describe('EventController', () => {
           radius: '10',
           startDateTime: '2025-01-01T00:00:00Z',
           endDateTime: '2025-01-02T00:00:00Z',
-          classifications: 'KZFzniwnSyZfZ7v7nJ' // Adjust this to match the test setup or actual usage
+          classifications: 'Music' // Ret dette til den faktiske værdi brugt i din implementering
         };
         const expectedResponse = { data: { _embedded: { events: ['event1', 'event2'] } } };
       
