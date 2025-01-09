@@ -111,7 +111,9 @@ describe('EventController', () => {
 
   describe('getSubCategoriesForSegment', () => {
     it('should return subcategories IDs for a given segment', async () => {
-      jest.spyOn(global, 'fetchClassifications').mockResolvedValue([
+      // Fix incorrect spyOn usage by replacing global with require directly
+      const EventController = require('../controllers/EventController');
+      jest.spyOn(EventController, 'fetchClassifications').mockResolvedValue([
         { segment: { id: '1', name: 'Music' }, genre: { id: '10', name: 'Rock' } },
         { segment: { id: '2', name: 'Sports' } }
       ]);
@@ -121,7 +123,8 @@ describe('EventController', () => {
     });
 
     it('should return an empty string if no matching segment is found', async () => {
-      jest.spyOn(global, 'fetchClassifications').mockResolvedValue([
+      const EventController = require('../controllers/EventController');
+      jest.spyOn(EventController, 'fetchClassifications').mockResolvedValue([
         { segment: { id: '2', name: 'Sports' } }
       ]);
 
