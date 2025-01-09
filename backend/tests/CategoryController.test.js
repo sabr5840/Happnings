@@ -115,6 +115,7 @@ describe('CategoryController', () => {
       });
 
       await getCategories(req, res);
+      expect(axios.get).toHaveBeenCalled();
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
         message: 'Error fetching categories from Ticketmaster',
