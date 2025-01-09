@@ -1,20 +1,13 @@
 require('dotenv').config();
 const axios = require('axios');
 const NodeCache = require('node-cache');
-const { 
-  fetchEventsByLocation, 
-  fetchSameDayEvents, 
-  fetchUpcomingEvents, 
-  getEventById, 
-  formatEventDetails, 
-  getEvents, 
-  getCoordinatesFromAddress, 
-  fetchEventsByCategory, 
-  getSubCategories, 
-  getEventsKeyword, 
-  fetchEventsByKeyword 
+const {
+  fetchEventsByLocation,
+  getEventById,
+  getCoordinatesFromAddress,
 } = require('../controllers/EventController');
 
+// Mock dependencies
 jest.mock('axios');
 jest.mock('node-cache');
 
@@ -37,10 +30,21 @@ describe('EventController', () => {
 
   describe('fetchEventsByLocation', () => {
     it('should fetch events and cache them', async () => {
+      // Simulate an empty cache
+      myCacheMock.get.mockReturnValueOnce(undefined);
+
+      // Mock API response
       const mockData = { _embedded: { events: [{ id: '1', name: 'Test Event' }] } };
       axios.get.mockResolvedValue({ data: mockData });
 
-      const events = await fetchEventsByLocation(55.6761, 12.5683, 10, '2025-01-01T00:00:00Z', '2025-01-01T23:59:59Z', 'music');
+      const events = await fetchEventsByLocation(
+        55.6761,
+        12.5683,
+        10,
+        '2025-01-01T00:00:00Z',
+        '2025-01-01T23:59:59Z',
+        'music'
+      );
 
       expect(myCacheMock.get).toHaveBeenCalled();
       expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
@@ -59,9 +63,17 @@ describe('EventController', () => {
     });
 
     it('should return cached events if available', async () => {
-      myCacheMock.get.mockReturnValue([{ id: '1', name: 'Cached Event' }]);
+      // Simulate cached data
+      myCacheMock.get.mockReturnValueOnce([{ id: '1', name: 'Cached Event' }]);
 
-      const events = await fetchEventsByLocation(55.6761, 12.5683, 10, '2025-01-01T00:00:00Z', '2025-01-01T23:59:59Z', 'music');
+      const events = await fetchEventsByLocation(
+        55.6761,
+        12.5683,
+        10,
+        '2025-01-01T00:00:00Z',
+        '2025-01-01T23:59:59Z',
+        'music'
+      );
 
       expect(myCacheMock.get).toHaveBeenCalled();
       expect(axios.get).not.toHaveBeenCalled();
@@ -71,16 +83,28 @@ describe('EventController', () => {
 
   describe('getEventById', () => {
     it('should fetch an event by ID and return formatted details', async () => {
+      // Mock API response
       const mockData = {
         id: '1',
         name: 'Test Event',
         dates: { start: { localDate: '2025-01-01', localTime: '20:00:00' } },
-        _embedded: { venues: [{ name: 'Test Venue', address: { line1: 'Test Address' }, city: { name: 'Test City' }, postalCode: '12345', country: { name: 'Denmark' } }] },
+        _embedded: {
+          venues: [
+            {
+              name: 'Test Venue',
+              address: { line1: 'Test Address' },
+              city: { name: 'Test City' },
+              postalCode: '12345',
+              country: { name: 'Denmark' },
+            },
+          ],
+        },
         images: [{ ratio: '16_9', url: 'test_image_url' }],
         url: 'test_event_url',
       };
       axios.get.mockResolvedValue({ data: mockData });
 
+      // Mock Express request and response
       const req = { params: { eventId: '1' } };
       const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
 
@@ -109,6 +133,7 @@ describe('EventController', () => {
 
   describe('getCoordinatesFromAddress', () => {
     it('should return coordinates for a valid address', async () => {
+      // Mock API response
       const mockData = { results: [{ geometry: { location: { lat: 55.6761, lng: 12.5683 } } }] };
       axios.get.mockResolvedValue({ data: mockData });
 
@@ -121,11 +146,10 @@ describe('EventController', () => {
     });
 
     it('should throw an error for an invalid address', async () => {
+      // Mock API response with no results
       axios.get.mockResolvedValue({ data: { results: [] } });
 
       await expect(getCoordinatesFromAddress('Invalid Address')).rejects.toThrow('Address not found');
     });
   });
-
-  // Add more tests for other methods as needed
 });
