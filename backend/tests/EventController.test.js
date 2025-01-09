@@ -1,3 +1,5 @@
+// backend/tests/EventController.test.js
+
 // Importing the necessary modules and functions
 const axios = require('axios');
 const NodeCache = require('node-cache');
@@ -8,8 +10,8 @@ jest.mock('axios');
 jest.mock('node-cache'); // Assuming that your actual implementation uses NodeCache directly
 
 // Mocking internal functions that make external calls
-jest.mock('./EventController', () => ({
-  ...jest.requireActual('./EventController'),
+jest.mock('../controllers/EventController', () => ({
+  ...jest.requireActual('../controllers/EventController'),
   fetchEventsByLocation: jest.fn()
 }));
 
@@ -58,4 +60,3 @@ describe('EventController', () => {
     });
   });
 });
-
