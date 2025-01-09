@@ -15,7 +15,6 @@ console.log('Firebase Auth Domain:', process.env.FIREBASE_AUTH_DOMAIN);
 console.log('Ticketmaster API Key:', process.env.TICKETMASTER_API_KEY);
 console.log('Geocoding API Key:', process.env.API_KEY_GEOCODING);
 
-
 const app = express();
 
 // Rate Limiting Configuration
@@ -26,7 +25,6 @@ const apiLimiter = rateLimit({
 
 // Apply rate limiter to all requests
 app.use(apiLimiter);
-
 
 // Middleware
 app.use(express.json());  // Parse incoming JSON requests
@@ -77,13 +75,11 @@ app.use('/api/events', eventRoutes);
 // Favorites management
 app.use('/api/favorites', favoriteRoutes);
 
-
 // Logging Middleware
 app.use((req, res, next) => {
   console.log(`Incoming request: ${req.method} ${req.url}`);
   next();
 });
-
 
 // Start server 
 const PORT = process.env.PORT || 3000;

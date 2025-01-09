@@ -116,7 +116,6 @@ describe('EventController', () => {
     });
   });
 
-
   describe('fetchEventsByCategory', () => {
     it('should fetch events successfully based on given parameters', async () => {
         const params = {

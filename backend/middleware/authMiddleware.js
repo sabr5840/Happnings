@@ -1,4 +1,5 @@
-const { admin } = require('../config/firebaseAdmin'); // Import Firebase Admin SDK instance
+// Import Firebase Admin SDK instance
+const { admin } = require('../config/firebaseAdmin'); 
 
 // Authentication middleware
 const authMiddleware = async (req, res, next) => {
