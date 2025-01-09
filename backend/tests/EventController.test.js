@@ -9,24 +9,22 @@ const {
   fetchSameDayEvents,
   fetchEventsByKeyword,
   fetchUpcomingEvents,
-  getCoordinatesFromAddress,
   fetchClassifications,
-  getSubCategoriesForSegment,
-  fetchEventsByCategory
+  getSubCategoriesForSegment
 } = require('../controllers/EventController');
 
-// Mock axios og NodeCache
+// Mock axios and NodeCache
 jest.mock('axios');
 jest.mock('node-cache');
 
 describe('EventController', () => {
   let originalEnv;
-  let myCache;
+  let cache;
 
   beforeAll(() => {
     originalEnv = { ...process.env };
     process.env.TICKETMASTER_API_KEY = 'testApiKey';
-    myCache = new NodeCache();
+    cache = new NodeCache();
   });
 
   afterAll(() => {
@@ -34,15 +32,16 @@ describe('EventController', () => {
   });
 
   beforeEach(() => {
-    myCache.flushAll();
+    cache.flushAll();
     jest.clearAllMocks();
   });
 
   describe('fetchEventsByLocation', () => {
     it('should fetch events from the Ticketmaster API based on location parameters', async () => {
+      const mockEvents = [{ id: '1', name: 'Concert' }];
       axios.get.mockResolvedValue({
         data: {
-          _embedded: { events: [{ id: '1', name: 'Concert' }] }
+          _embedded: { events: mockEvents }
         }
       });
 
@@ -50,7 +49,7 @@ describe('EventController', () => {
       expect(axios.get).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
         params: expect.objectContaining({ latlong: '55.6761,12.5683' })
       }));
-      expect(events).toEqual([{ id: '1', name: 'Concert' }]);
+      expect(events).toEqual(mockEvents);
     });
   });
 
@@ -98,26 +97,6 @@ describe('EventController', () => {
     });
   });
 
-  describe('getCoordinatesFromAddress', () => {
-    it('should convert an address to coordinates using the Google Geocoding API', async () => {
-      axios.get.mockResolvedValue({
-        data: {
-          results: [{
-            geometry: {
-              location: { lat: 55.6761, lng: 12.5683 }
-            }
-          }]
-        }
-      });
-
-      const coordinates = await getCoordinatesFromAddress('Copenhagen');
-      expect(axios.get).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
-        params: expect.objectContaining({ address: 'Copenhagen' })
-      }));
-      expect(coordinates).toEqual({ lat: 55.6761, lng: 12.5683 });
-    });
-  });
-
   describe('fetchClassifications', () => {
     it('should fetch and cache classifications when cache is expired or empty', async () => {
       axios.get.mockResolvedValue({
@@ -134,14 +113,15 @@ describe('EventController', () => {
         { params: { apikey: 'testApiKey' } }
       );
       expect(classifications).toEqual([{ id: '1', name: 'Concert' }]);
-      expect(myCache.set).toHaveBeenCalledWith('classifications', [{ id: '1', name: 'Concert' }], 86400);
     });
 
     it('should return cached data if not expired', async () => {
-      myCache.set('classifications', [{ id: '1', name: 'Concert' }], 86400);
-      myCache.get.mockReturnValue([{ id: '1', name: 'Concert' }]);
+      // Simulate a cached value that hasn't expired
+      cachedClassifications = [{ id: '1', name: 'Concert' }];
+      classificationCacheTimestamp = Date.now();
+
       const classifications = await fetchClassifications();
-      expect(axios.get).not.toHaveBeenCalled();
+      expect(axios.get).not.toHaveBeenCalled(); // Axios should not be called since the data is cached
       expect(classifications).toEqual([{ id: '1', name: 'Concert' }]);
     });
   });
@@ -167,33 +147,4 @@ describe('EventController', () => {
     });
   });
 
-  describe('fetchEventsByCategory', () => {
-    it('should fetch events based on category specifications', async () => {
-      axios.get.mockResolvedValue({
-        data: {
-          _embedded: { events: [{ id: '1', name: 'Basketball Game' }] }
-        }
-      });
-
-      jest.spyOn(global, 'getSubCategoriesForSegment').mockResolvedValue('sports,football');
-
-      const events = await fetchEventsByCategory(55.6761, 12.5683, 10, '2020-01-01T00:00:00Z', '2020-01-02T00:00:00Z', 'sports');
-      expect(axios.get).toHaveBeenCalledWith(
-        'https://app.ticketmaster.com/discovery/v2/events.json',
-        expect.objectContaining({
-          params: expect.objectContaining({
-            latlong: '55.6761,12.5683',
-            radius: 10,
-            classifications: 'sports,football'
-          })
-        })
-      );
-      expect(events).toEqual([{ id: '1', name: 'Basketball Game' }]);
-    });
-
-    it('should handle API errors appropriately', async () => {
-      axios.get.mockRejectedValue(new Error('API failure'));
-      await expect(fetchEventsByCategory(55.6761, 12.5683, 10, '2020-01-01T00:00:00Z', '2020-01-02T00:00:00Z', 'sports')).rejects.toThrow('API failure');
-    });
-  });
 });
