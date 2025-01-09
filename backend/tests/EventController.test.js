@@ -119,25 +119,24 @@ describe('EventController', () => {
 
   describe('fetchEventsByCategory', () => {
     it('should fetch events successfully based on given parameters', async () => {
-      // Setup
-      const params = {
-        latlong: '55.6761,12.5683',
-        radius: '10',
-        startDateTime: '2025-01-01T00:00:00Z',
-        endDateTime: '2025-01-02T00:00:00Z',
-        classifications: 'KZFzniwnSyZfZ7v7nJ'
-      };
-      const expectedResponse = { data: { _embedded: { events: ['event1', 'event2'] } } };
-
-      axios.get.mockResolvedValue(expectedResponse);
-
-      // Execute
-      const result = await fetchEventsByCategory(55.6761, 12.5683, '10', '2025-01-01T00:00:00Z', '2025-01-02T00:00:00Z', 'Music');
-
-      // Verify
-      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', { params });
-      expect(result).toEqual(['event1', 'event2']);
-    });
+        const params = {
+          apikey: 'testApiKey', // Ensure this is included as it's part of your actual function's call
+          latlong: '55.6761,12.5683',
+          radius: '10',
+          startDateTime: '2025-01-01T00:00:00Z',
+          endDateTime: '2025-01-02T00:00:00Z',
+          classifications: 'KZFzniwnSyZfZ7v7nJ' // Adjust this to match the test setup or actual usage
+        };
+        const expectedResponse = { data: { _embedded: { events: ['event1', 'event2'] } } };
+      
+        axios.get.mockResolvedValue(expectedResponse);
+      
+        const result = await fetchEventsByCategory(55.6761, 12.5683, '10', '2025-01-01T00:00:00Z', '2025-01-02T00:00:00Z', 'Music');
+      
+        expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', { params });
+        expect(result).toEqual(['event1', 'event2']);
+      });
+      
 
     it('should handle errors from the Ticketmaster API', async () => {
       // Setup
