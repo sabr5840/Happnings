@@ -1,507 +1,749 @@
-/**
- * userController.test.js
- */
+// backend/tests/EventController.test.js
 
-const { 
-  registerUser, 
-  loginUser, 
-  logoutUser, 
-  getUsers, 
-  getUserById, 
-  updateUser, 
-  deleteUser 
-} = require('../controllers/userController');
+require('dotenv').config();
+const axios = require('axios');
+const NodeCache = require('node-cache');
+const {
+  fetchEventsByLocation,
+  fetchSameDayEvents,
+  fetchUpcomingEvents,
+  getEventById,
+  getCoordinatesFromAddress,
+  getEvents,
+  getEventsKeyword,
+  fetchEventsByKeyword,
+  fetchEventsByCategory,
+  fetchEventsByCategories,
+} = require('../controllers/EventController');
 
-const { db, admin } = require('../config/firebaseAdmin');
-const fetch = require('node-fetch');
+jest.mock('axios');
+jest.mock('node-cache');
 
-// Mock the Firebase Admin SDK
-jest.mock('../../backend/config/firebaseAdmin', () => ({
-  db: {
-    collection: jest.fn(),
-  },
-  admin: {
-    auth: jest.fn(),
-  },
-}));
+describe('EventController', () => {
+  const TICKETMASTER_API_KEY = 'test_api_key';
+  const GEOCODING_API_KEY = 'test_geocoding_key';
 
-// Mock node-fetch
-jest.mock('node-fetch', () => jest.fn());
+  let myCacheMock;
 
-// Utility to mock Express request/response
-const mockRequest = (body = {}, session = {}) => ({
-  body,
-  params: {},
-  session,
-});
+  beforeAll(() => {
+    process.env.TICKETMASTER_API_KEY = TICKETMASTER_API_KEY;
+    process.env.API_KEY_GEOCODING = GEOCODING_API_KEY;
+  });
 
-const mockResponse = () => {
-  const res = {};
-  res.status = jest.fn().mockReturnValue(res);
-  res.json  = jest.fn().mockReturnValue(res);
-  res.send  = jest.fn().mockReturnValue(res);
-  res.clearCookie = jest.fn().mockReturnValue(res);
-  return res;
-};
-
-describe('User Controller', () => {
-  afterEach(() => {
+  beforeEach(() => {
     jest.clearAllMocks();
+    myCacheMock = {
+      get: jest.fn(),
+      set: jest.fn(),
+    };
+    NodeCache.mockImplementation(() => myCacheMock);
   });
 
-  // ---------------------------------------
-  // registerUser
-  // ---------------------------------------
-  describe('registerUser', () => {
-    it('should return 400 if required fields are missing', async () => {
-      const req = mockRequest({}); // no name, email, password
-      const res = mockResponse();
-
-      await registerUser(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Missing required fields',
-      });
-    });
-
-    it('should create a user in Firebase Auth and Firestore', async () => {
-      // Mock request
-      const req = mockRequest({
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'password123',
-      });
-      const res = mockResponse();
-
-      // Mock admin.auth().createUser response
-      admin.auth.mockReturnValue({
-        createUser: jest.fn().mockResolvedValue({
-          uid: 'testUid',
-        }),
-      });
-
-      // Mock Firestore db calls
-      const docMock = {
-        set: jest.fn().mockResolvedValue(),
-      };
-      db.collection.mockReturnValue({
-        doc: jest.fn().mockReturnValue(docMock),
-      });
-
-      await registerUser(req, res);
-
-      expect(admin.auth).toHaveBeenCalled();
-      expect(db.collection).toHaveBeenCalledWith('users');
-      expect(docMock.set).toHaveBeenCalledWith({
-        Name: 'Test User',
-        Email: 'test@example.com',
-        Date_of_registration: expect.any(Date),
-        FCM_Token: null,
-      });
-      expect(res.status).toHaveBeenCalledWith(201);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'User registered successfully',
-        userId: 'testUid',
-      });
-    });
-
-    it('should handle email-already-in-use error', async () => {
-      const req = mockRequest({
-        name: 'Test User',
-        email: 'taken@example.com',
-        password: 'password123',
-      });
-      const res = mockResponse();
-
-      admin.auth.mockReturnValue({
-        createUser: jest.fn().mockRejectedValue({
-          errorInfo: { code: 'auth/email-already-in-use' },
-        }),
-      });
-
-      await registerUser(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        error: {
-          code: 'auth/email-already-in-use',
-          message: 'The email address is already in use by another account.',
-        },
-      });
-    });
-
-    it('should handle unexpected errors', async () => {
-      const req = mockRequest({
-        name: 'Test User',
-        email: 'test@example.com',
-        password: 'password123',
-      });
-      const res = mockResponse();
-
-      admin.auth.mockReturnValue({
-        createUser: jest.fn().mockRejectedValue(new Error('Unexpected error')),
-      });
-
-      await registerUser(req, res);
-
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Unexpected error',
-      });
-    });
-  });
-
-  // ---------------------------------------
-  // loginUser
-  // ---------------------------------------
-  describe('loginUser', () => {
-    it('should return 400 if required fields are missing', async () => {
-      const req = mockRequest({}); // no email, password
-      const res = mockResponse();
-
-      await loginUser(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Missing required fields',
-      });
-    });
-
-    it('should login user with valid credentials', async () => {
-      const req = mockRequest({
-        email: 'test@example.com',
-        password: 'password123',
-      });
-      const res = mockResponse();
-
-      // Mock fetch response
-      fetch.mockImplementationOnce(() =>
-        Promise.resolve({
-          ok: true,
-          json: () =>
-            Promise.resolve({
-              localId: 'testLocalId',
-              idToken: 'testIdToken',
-            }),
-        })
-      );
-
-      await loginUser(req, res);
-      expect(fetch).toHaveBeenCalledWith(
-        expect.stringContaining('accounts:signInWithPassword'),
-        expect.any(Object)
-      );
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Login successful',
-        userId: 'testLocalId',
-        token: 'testIdToken',
-      });
-      expect(req.session.userId).toBe('testLocalId');
-    });
-
-    it('should handle invalid credentials', async () => {
-      const req = mockRequest({
-        email: 'wrong@example.com',
-        password: 'wrongpass',
-      });
-      const res = mockResponse();
-
-      // Mock fetch response with error
-      fetch.mockImplementationOnce(() =>
-        Promise.resolve({
-          ok: false,
-          json: () =>
-            Promise.resolve({
-              error: 'Invalid credentials',
-            }),
-        })
-      );
-
-      await loginUser(req, res);
-      expect(res.status).toHaveBeenCalledWith(401);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'Invalid credentials',
-        error: { error: 'Invalid credentials' },
-      });
-    });
-
-    it('should handle fetch errors gracefully', async () => {
-      const req = mockRequest({
-        email: 'test@example.com',
-        password: 'password123',
-      });
-      const res = mockResponse();
-
-      // Mock fetch rejection
-      fetch.mockImplementationOnce(() => Promise.reject(new Error('Fetch error')));
-
-      await loginUser(req, res);
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({
-        error: 'Fetch error',
-      });
-    });
-  });
-
-  // ---------------------------------------
-  // logoutUser
-  // ---------------------------------------
-  describe('logoutUser', () => {
-    it('should destroy session and return success message', () => {
-      const req = {
-        session: {
-          destroy: jest.fn((cb) => cb(null)),
+  // ------------------------------------------------------------------------------
+  // fetchEventsByLocation
+  // ------------------------------------------------------------------------------
+  describe('fetchEventsByLocation', () => {
+    it('should fetch events and cache them', async () => {
+      const mockData = {
+        _embedded: {
+          events: [{ id: '1', name: 'Test Event' }],
         },
       };
-      const res = mockResponse();
+      axios.get.mockResolvedValue({ data: mockData });
 
-      logoutUser(req, res);
-      expect(req.session.destroy).toHaveBeenCalled();
-      expect(res.clearCookie).toHaveBeenCalledWith('connect.sid');
-      expect(res.json).toHaveBeenCalledWith({ message: 'Logout successful' });
-    });
+      const events = await fetchEventsByLocation(
+        55.6761,
+        12.5683,
+        10,
+        '2025-01-01T00:00:00Z',
+        '2025-01-01T23:59:59Z',
+        'music'
+      );
 
-    it('should handle session destroy error', () => {
-      const req = {
-        session: {
-          destroy: jest.fn((cb) => cb(new Error('Session error'))),
+      expect(myCacheMock.get).toHaveBeenCalledWith(
+        'events_55.6761_12.5683_10_2025-01-01T00:00:00Z_2025-01-01T23:59:59Z_music'
+      );
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: {
+          apikey: TICKETMASTER_API_KEY,
+          latlong: '55.6761,12.5683',
+          radius: 10,
+          startDateTime: '2025-01-01T00:00:00Z',
+          endDateTime: '2025-01-01T23:59:59Z',
+          classificationName: 'music',
+          sort: 'date,asc',
         },
+      });
+      expect(myCacheMock.set).toHaveBeenCalledWith(
+        'events_55.6761_12.5683_10_2025-01-01T00:00:00Z_2025-01-01T23:59:59Z_music',
+        [{ id: '1', name: 'Test Event' }],
+        100
+      );
+      expect(events).toEqual([{ id: '1', name: 'Test Event' }]);
+    });
+
+    it('should return cached events if available', async () => {
+      const cachedEvents = [{ id: '1', name: 'Cached Event' }];
+      myCacheMock.get.mockReturnValue(cachedEvents);
+
+      const events = await fetchEventsByLocation(
+        55.6761,
+        12.5683,
+        10,
+        '2025-01-01T00:00:00Z',
+        '2025-01-01T23:59:59Z',
+        'music'
+      );
+
+      expect(myCacheMock.get).toHaveBeenCalledWith(
+        'events_55.6761_12.5683_10_2025-01-01T00:00:00Z_2025-01-01T23:59:59Z_music'
+      );
+      expect(axios.get).not.toHaveBeenCalled();
+      expect(events).toEqual(cachedEvents);
+    });
+
+    it('should handle API errors gracefully', async () => {
+      axios.get.mockRejectedValue(new Error('API fetch error'));
+
+      await expect(
+        fetchEventsByLocation(
+          55.6761,
+          12.5683,
+          10,
+          '2025-01-01T00:00:00Z',
+          '2025-01-01T23:59:59Z',
+          'music'
+        )
+      ).rejects.toThrow('Failed to fetch events');
+      expect(myCacheMock.get).toHaveBeenCalledWith(
+        'events_55.6761_12.5683_10_2025-01-01T00:00:00Z_2025-01-01T23:59:59Z_music'
+      );
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: {
+          apikey: TICKETMASTER_API_KEY,
+          latlong: '55.6761,12.5683',
+          radius: 10,
+          startDateTime: '2025-01-01T00:00:00Z',
+          endDateTime: '2025-01-01T23:59:59Z',
+          classificationName: 'music',
+          sort: 'date,asc',
+        },
+      });
+      expect(myCacheMock.set).not.toHaveBeenCalled();
+    });
+  });
+
+  // ------------------------------------------------------------------------------
+  // getEventById
+  // ------------------------------------------------------------------------------
+  describe('getEventById', () => {
+    it('should fetch an event by ID and return formatted details', async () => {
+      const mockData = {
+        id: '1',
+        name: 'Test Event',
+        dates: { start: { localDate: '2025-01-01', localTime: '20:00:00' } },
+        _embedded: {
+          venues: [
+            {
+              name: 'Test Venue',
+              address: { line1: 'Test Address' },
+              city: { name: 'Test City' },
+              postalCode: '12345',
+              country: { name: 'Denmark' },
+            },
+          ],
+        },
+        images: [{ ratio: '16_9', url: 'test_image_url' }],
+        url: 'test_event_url',
       };
-      const res = mockResponse();
+      axios.get.mockResolvedValue({ data: mockData, status: 200 });
 
-      logoutUser(req, res);
+      const req = { params: { eventId: '1' } };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await getEventById(req, res);
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events/1.json', {
+        params: { apikey: TICKETMASTER_API_KEY },
+      });
+      expect(res.json).toHaveBeenCalledWith({
+        id: '1',
+        name: 'Test Event',
+        date: '2025-01-01',
+        time: '20:00:00',
+        venue: 'Test Venue',
+        venueAddress: {
+          address: 'Test Address',
+          city: 'Test City',
+          postalCode: '12345',
+          country: 'Denmark',
+        },
+        imageUrl: 'test_image_url',
+        eventUrl: 'test_event_url',
+      });
+    });
+
+    it('should return 500 if fetching event details fails', async () => {
+      axios.get.mockRejectedValue(new Error('API fetch error'));
+
+      const req = { params: { eventId: '1' } };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await getEventById(req, res);
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events/1.json', {
+        params: { apikey: TICKETMASTER_API_KEY },
+      });
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
-        message: 'Logout failed',
-        error: 'Session error',
+        message: 'Failed to fetch event details',
+        error: 'API fetch error',
       });
     });
 
-    it('should return 400 if no session found', () => {
-      const req = {};
-      const res = mockResponse();
+    it('should handle non-200 status codes gracefully', async () => {
+      axios.get.mockResolvedValue({ data: {}, status: 404 });
 
-      logoutUser(req, res);
-      expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: 'No session found' });
-    });
-  });
+      const req = { params: { eventId: 'nonexistent' } };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
 
-  // ---------------------------------------
-  // getUsers
-  // ---------------------------------------
-  describe('getUsers', () => {
-    it('should retrieve all users', async () => {
-      const req = mockRequest();
-      const res = mockResponse();
+      await getEventById(req, res);
 
-      const docData = [
-        { id: 'user1', data: () => ({ Name: 'User1' }) },
-        { id: 'user2', data: () => ({ Name: 'User2' }) },
-      ];
-
-      db.collection.mockReturnValue({
-        get: jest.fn().mockResolvedValue({
-          docs: docData,
-        }),
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events/nonexistent.json', {
+        params: { apikey: TICKETMASTER_API_KEY },
       });
-
-      await getUsers(req, res);
-
-      expect(db.collection).toHaveBeenCalledWith('users');
-      expect(res.json).toHaveBeenCalledWith([
-        { userId: 'user1', Name: 'User1' },
-        { userId: 'user2', Name: 'User2' },
-      ]);
-    });
-
-    it('should handle errors', async () => {
-      const req = mockRequest();
-      const res = mockResponse();
-
-      db.collection.mockReturnValue({
-        get: jest.fn().mockRejectedValue(new Error('DB error')),
-      });
-
-      await getUsers(req, res);
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'DB error' });
-    });
-  });
-
-  // ---------------------------------------
-  // getUserById
-  // ---------------------------------------
-  describe('getUserById', () => {
-    it('should return user data if exists', async () => {
-      const req = { params: { id: 'testId' } };
-      const res = mockResponse();
-
-      db.collection.mockReturnValue({
-        doc: jest.fn().mockReturnValue({
-          get: jest.fn().mockResolvedValue({
-            exists: true,
-            id: 'testId',
-            data: () => ({ Name: 'Test User' }),
-          }),
-        }),
-      });
-
-      await getUserById(req, res);
-      expect(res.json).toHaveBeenCalledWith({
-        userId: 'testId',
-        Name: 'Test User',
-      });
-    });
-
-    it('should return 404 if user not found', async () => {
-      const req = { params: { id: 'nonExistentId' } };
-      const res = mockResponse();
-
-      db.collection.mockReturnValue({
-        doc: jest.fn().mockReturnValue({
-          get: jest.fn().mockResolvedValue({
-            exists: false,
-          }),
-        }),
-      });
-
-      await getUserById(req, res);
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({ message: 'User not found' });
-    });
-
-    it('should handle errors', async () => {
-      const req = { params: { id: 'testId' } };
-      const res = mockResponse();
-
-      db.collection.mockReturnValue({
-        doc: jest.fn().mockReturnValue({
-          get: jest.fn().mockRejectedValue(new Error('DB error')),
-        }),
-      });
-
-      await getUserById(req, res);
-      expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ error: 'DB error' });
-    });
-  });
-
-  // ---------------------------------------
-  // updateUser
-  // ---------------------------------------
-  describe('updateUser', () => {
-    it('should update user in Firebase Auth and Firestore', async () => {
-      const req = {
-        params: { id: 'testId' },
-        body: {
-          name: 'New Name',
-          email: 'newemail@example.com',
-          password: 'newpass123',
-        },
-      };
-      const res = mockResponse();
-
-      // Mock admin.auth().updateUser
-      admin.auth.mockReturnValue({
-        updateUser: jest.fn().mockResolvedValue(),
-      });
-
-      // Mock db.collection
-      db.collection.mockReturnValue({
-        doc: jest.fn().mockReturnValue({
-          update: jest.fn().mockResolvedValue(),
-        }),
-      });
-
-      await updateUser(req, res);
-
-      expect(admin.auth).toHaveBeenCalled();
-      expect(db.collection).toHaveBeenCalledWith('users');
-      expect(res.json).toHaveBeenCalledWith({ message: 'User updated successfully' });
-    });
-
-    it('should handle errors', async () => {
-      const req = {
-        params: { id: 'testId' },
-        body: {
-          email: 'fail@example.com',
-        },
-      };
-      const res = mockResponse();
-
-      admin.auth.mockReturnValue({
-        updateUser: jest.fn().mockRejectedValue(new Error('Auth error')),
-      });
-
-      await updateUser(req, res);
-      expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
-        error: 'Auth error',
+        message: 'API call failed with status: 404',
       });
     });
   });
 
-  // ---------------------------------------
-  // deleteUser
-  // ---------------------------------------
-  describe('deleteUser', () => {
-    it('should return 403 if session user is not the same as request id', async () => {
-      const req = {
-        params: { id: 'otherUserId' },
-        session: { userId: 'sessionUserId' },
+  // ------------------------------------------------------------------------------
+  // getCoordinatesFromAddress
+  // ------------------------------------------------------------------------------
+  describe('getCoordinatesFromAddress', () => {
+    it('should return coordinates for a valid address', async () => {
+      const mockData = {
+        results: [
+          {
+            geometry: {
+              location: { lat: 55.6761, lng: 12.5683 },
+            },
+          },
+        ],
       };
-      const res = mockResponse();
+      axios.get.mockResolvedValue({ data: mockData });
 
-      await deleteUser(req, res);
-      expect(res.status).toHaveBeenCalledWith(403);
-      expect(res.json).toHaveBeenCalledWith({
-        message: 'You are not authorized to delete this account',
+      const coordinates = await getCoordinatesFromAddress('Copenhagen');
+
+      expect(axios.get).toHaveBeenCalledWith('https://maps.googleapis.com/maps/api/geocode/json', {
+        params: { address: 'Copenhagen', key: GEOCODING_API_KEY },
+      });
+      expect(coordinates).toEqual({ lat: 55.6761, lng: 12.5683 });
+    });
+
+    it('should throw an error for an invalid address', async () => {
+      const mockData = { results: [] };
+      axios.get.mockResolvedValue({ data: mockData });
+
+      await expect(getCoordinatesFromAddress('Invalid Address')).rejects.toThrow('Address not found');
+      expect(axios.get).toHaveBeenCalledWith('https://maps.googleapis.com/maps/api/geocode/json', {
+        params: { address: 'Invalid Address', key: GEOCODING_API_KEY },
       });
     });
 
-    it('should delete user from Firebase Auth and Firestore', async () => {
-      const req = {
-        params: { id: 'testId' },
-        session: { userId: 'testId' },
+    it('should handle API errors gracefully', async () => {
+      axios.get.mockRejectedValue(new Error('API fetch error'));
+
+      await expect(getCoordinatesFromAddress('Copenhagen')).rejects.toThrow('Address not found');
+      expect(axios.get).toHaveBeenCalledWith('https://maps.googleapis.com/maps/api/geocode/json', {
+        params: { address: 'Copenhagen', key: GEOCODING_API_KEY },
+      });
+    });
+  });
+
+  // ------------------------------------------------------------------------------
+  // getEventsKeyword
+  // ------------------------------------------------------------------------------
+  describe('getEventsKeyword', () => {
+    it('should fetch events based on keyword and countryCode', async () => {
+      const mockEvents = [{ id: '1', name: 'Keyword Event' }];
+      axios.get.mockResolvedValue({ data: { _embedded: { events: mockEvents } } });
+
+      const req = { query: { keyword: 'music', countryCode: 'DK' } };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
       };
-      const res = mockResponse();
 
-      admin.auth.mockReturnValue({
-        deleteUser: jest.fn().mockResolvedValue(),
+      await getEventsKeyword(req, res);
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: { apikey: TICKETMASTER_API_KEY, keyword: 'music', countryCode: 'DK' },
       });
-      db.collection.mockReturnValue({
-        doc: jest.fn().mockReturnValue({
-          delete: jest.fn().mockResolvedValue(),
-        }),
-      });
-
-      req.session.destroy = jest.fn();
-
-      await deleteUser(req, res);
-
-      expect(admin.auth).toHaveBeenCalled();
-      expect(db.collection).toHaveBeenCalledWith('users');
       expect(res.status).toHaveBeenCalledWith(200);
-      expect(res.json).toHaveBeenCalledWith({ message: 'User deleted successfully' });
-      expect(req.session.destroy).toHaveBeenCalled();
+      expect(res.json).toHaveBeenCalledWith(mockEvents);
     });
 
-    it('should handle errors', async () => {
-      const req = {
-        params: { id: 'testId' },
-        session: { userId: 'testId' },
+    it('should return 404 if no events are found for the given keyword', async () => {
+      axios.get.mockResolvedValue({ data: { _embedded: { events: [] } } });
+
+      const req = { query: { keyword: 'unknown' } };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
       };
-      const res = mockResponse();
 
-      admin.auth.mockReturnValue({
-        deleteUser: jest.fn().mockRejectedValue(new Error('Delete error')),
+      await getEventsKeyword(req, res);
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: { apikey: TICKETMASTER_API_KEY, keyword: 'unknown' },
       });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'No events found for the given keyword.',
+      });
+    });
 
-      await deleteUser(req, res);
+    it('should return 400 if keyword is missing', async () => {
+      const req = { query: {} };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
 
+      await getEventsKeyword(req, res);
+
+      expect(axios.get).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Keyword parameter is required',
+      });
+    });
+
+    it('should handle API errors gracefully', async () => {
+      axios.get.mockRejectedValue(new Error('API fetch error'));
+
+      const req = { query: { keyword: 'music' } };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await getEventsKeyword(req, res);
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: { apikey: TICKETMASTER_API_KEY, keyword: 'music' },
+      });
       expect(res.status).toHaveBeenCalledWith(500);
       expect(res.json).toHaveBeenCalledWith({
-        error: 'Delete error',
+        message: 'Failed to fetch events',
+        error: 'API fetch error',
+      });
+    });
+  });
+
+  // ------------------------------------------------------------------------------
+  // getEvents
+  // ------------------------------------------------------------------------------
+  describe('getEvents', () => {
+    it('should fetch events based on query parameters without categories', async () => {
+      const mockEvents = [{ id: '1', name: 'Event 1' }];
+      fetchEventsByLocation.mockResolvedValue(mockEvents);
+
+      const req = {
+        query: {
+          latitude: '55.6761',
+          longitude: '12.5683',
+          eventDate: 'sameDay',
+          radius: '10',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await getEvents(req, res);
+
+      expect(fetchEventsByLocation).toHaveBeenCalledWith(
+        55.6761,
+        12.5683,
+        10,
+        expect.any(String),
+        expect.any(String),
+        undefined
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(mockEvents);
+    });
+
+    it('should fetch events based on query parameters with categories', async () => {
+      const mockEvents = [{ id: '1', name: 'Categorized Event' }];
+      fetchEventsByCategories.mockResolvedValue(mockEvents);
+
+      const req = {
+        query: {
+          latitude: '55.6761',
+          longitude: '12.5683',
+          eventDate: 'upcoming',
+          categories: 'music,sports',
+          radius: '15',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await getEvents(req, res);
+
+      expect(fetchEventsByCategories).toHaveBeenCalledWith(
+        '55.6761',
+        '12.5683',
+        15,
+        expect.any(String),
+        expect.any(String),
+        ['music', 'sports']
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(mockEvents);
+    });
+
+    it('should return 400 for invalid date format', async () => {
+      const req = {
+        query: {
+          latitude: '55.6761',
+          longitude: '12.5683',
+          eventDate: 'invalid-date',
+          radius: '10',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await getEvents(req, res);
+
+      expect(fetchEventsByLocation).not.toHaveBeenCalled();
+      expect(fetchEventsByCategories).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Invalid date format' });
+    });
+
+    it('should handle errors gracefully', async () => {
+      fetchEventsByLocation.mockRejectedValue(new Error('Fetch error'));
+
+      const req = {
+        query: {
+          latitude: '55.6761',
+          longitude: '12.5683',
+          eventDate: 'sameDay',
+          radius: '10',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await getEvents(req, res);
+
+      expect(fetchEventsByLocation).toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({ message: 'Failed to fetch events' });
+    });
+  });
+
+  // ------------------------------------------------------------------------------
+  // fetchEventsByKeyword
+  // ------------------------------------------------------------------------------
+  describe('fetchEventsByKeyword', () => {
+    it('should fetch events by keyword successfully', async () => {
+      const mockEvents = [{ id: '1', name: 'Keyword Event' }];
+      axios.get.mockResolvedValue({ data: { _embedded: { events: mockEvents } } });
+
+      const req = {
+        query: {
+          keyword: 'music',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await fetchEventsByKeyword(req, res);
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: { apikey: TICKETMASTER_API_KEY, keyword: 'music' },
+      });
+      expect(res.status).toHaveBeenCalledWith(200);
+      expect(res.json).toHaveBeenCalledWith(mockEvents);
+    });
+
+    it('should handle missing keyword parameter', async () => {
+      const req = { query: {} };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await fetchEventsByKeyword(req, res);
+
+      expect(axios.get).not.toHaveBeenCalled();
+      expect(res.status).toHaveBeenCalledWith(400);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Keyword parameter is required',
+      });
+    });
+
+    it('should handle no events found for keyword', async () => {
+      axios.get.mockResolvedValue({ data: { _embedded: { events: [] } } });
+
+      const req = {
+        query: {
+          keyword: 'unknown',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await fetchEventsByKeyword(req, res);
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: { apikey: TICKETMASTER_API_KEY, keyword: 'unknown' },
+      });
+      expect(res.status).toHaveBeenCalledWith(404);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'No events found for the given keyword.',
+      });
+    });
+
+    it('should handle API errors gracefully', async () => {
+      axios.get.mockRejectedValue(new Error('API fetch error'));
+
+      const req = {
+        query: {
+          keyword: 'music',
+        },
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      await fetchEventsByKeyword(req, res);
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: { apikey: TICKETMASTER_API_KEY, keyword: 'music' },
+      });
+      expect(res.status).toHaveBeenCalledWith(500);
+      expect(res.json).toHaveBeenCalledWith({
+        message: 'Failed to fetch events',
+        error: 'API fetch error',
+      });
+    });
+  });
+
+  // ------------------------------------------------------------------------------
+  // fetchEventsByCategory
+  // ------------------------------------------------------------------------------
+  describe('fetchEventsByCategory', () => {
+    it('should fetch events by category successfully', async () => {
+      const mockEvents = [{ id: '1', name: 'Category Event' }];
+      axios.get.mockResolvedValue({ data: { _embedded: { events: mockEvents } }, status: 200 });
+
+      const req = { 
+        query: {
+          category: 'music',
+        }
+      };
+      const res = {
+        json: jest.fn(),
+        status: jest.fn().mockReturnThis(),
+      };
+
+      // Mock getSubCategories
+      const mockSubCategories = 'music,rock,pop';
+      const getSubCategoriesMock = jest.spyOn(require('../controllers/EventController'), 'getSubCategories').mockResolvedValue(mockSubCategories);
+
+      const userLatitude = 55.6761;
+      const userLongitude = 12.5683;
+      const radius = 10;
+      const startDateTime = '2025-01-01T00:00:00Z';
+      const endDateTime = '2025-01-01T23:59:59Z';
+      const mainCategory = 'music';
+
+      await fetchEventsByCategory(userLatitude, userLongitude, radius, startDateTime, endDateTime, mainCategory);
+
+      expect(getSubCategoriesMock).toHaveBeenCalledWith(mainCategory);
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: {
+          apikey: TICKETMASTER_API_KEY,
+          latlong: '55.6761,12.5683',
+          radius: 10,
+          startDateTime: '2025-01-01T00:00:00Z',
+          endDateTime: '2025-01-01T23:59:59Z',
+          classifications: 'music,rock,pop',
+        },
+      });
+      expect(mockEvents).toEqual(mockEvents);
+    });
+
+    it('should handle errors gracefully', async () => {
+      axios.get.mockRejectedValue(new Error('API fetch error'));
+
+      const userLatitude = 55.6761;
+      const userLongitude = 12.5683;
+      const radius = 10;
+      const startDateTime = '2025-01-01T00:00:00Z';
+      const endDateTime = '2025-01-01T23:59:59Z';
+      const mainCategory = 'music';
+
+      await expect(
+        fetchEventsByCategory(userLatitude, userLongitude, radius, startDateTime, endDateTime, mainCategory)
+      ).rejects.toThrow('Error fetching events from Ticketmaster');
+      
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: {
+          apikey: TICKETMASTER_API_KEY,
+          latlong: '55.6761,12.5683',
+          radius: 10,
+          startDateTime: '2025-01-01T00:00:00Z',
+          endDateTime: '2025-01-01T23:59:59Z',
+          classifications: 'music,rock,pop',
+        },
+      });
+    });
+  });
+
+  // ------------------------------------------------------------------------------
+  // fetchEventsByCategories
+  // ------------------------------------------------------------------------------
+  describe('fetchEventsByCategories', () => {
+    it('should fetch events by multiple categories successfully', async () => {
+      const mockEvents = [{ id: '1', name: 'Multi-Category Event' }];
+      axios.get.mockResolvedValue({ data: { _embedded: { events: mockEvents } }, status: 200 });
+
+      const userLatitude = 55.6761;
+      const userLongitude = 12.5683;
+      const radius = 10;
+      const startDateTime = '2025-01-01T00:00:00Z';
+      const endDateTime = '2025-01-01T23:59:59Z';
+      const mainCategories = ['music', 'sports'];
+
+      // Mock getSubCategoriesForSegment
+      const getSubCategoriesForSegmentMock = jest.spyOn(require('../controllers/EventController'), 'getSubCategoriesForSegment').mockResolvedValueOnce('music,rock,pop').mockResolvedValueOnce('sports,football,basketball');
+
+      const events = await fetchEventsByCategories(
+        userLatitude,
+        userLongitude,
+        radius,
+        startDateTime,
+        endDateTime,
+        mainCategories
+      );
+
+      expect(getSubCategoriesForSegmentMock).toHaveBeenCalledTimes(2);
+      expect(getSubCategoriesForSegmentMock).toHaveBeenNthCalledWith(1, 'music');
+      expect(getSubCategoriesForSegmentMock).toHaveBeenNthCalledWith(2, 'sports');
+
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: {
+          apikey: TICKETMASTER_API_KEY,
+          latlong: '55.6761,12.5683',
+          radius: 10,
+          startDateTime: '2025-01-01T00:00:00Z',
+          endDateTime: '2025-01-01T23:59:59Z',
+          classificationId: 'music,rock,pop,sports,football,basketball',
+          sort: 'date,asc',
+        },
+      });
+
+      expect(events).toEqual(mockEvents);
+    });
+
+    it('should handle empty classification IDs gracefully', async () => {
+      const mockEvents = [];
+      axios.get.mockResolvedValue({ data: { _embedded: { events: mockEvents } }, status: 200 });
+
+      const userLatitude = 55.6761;
+      const userLongitude = 12.5683;
+      const radius = 10;
+      const startDateTime = '2025-01-01T00:00:00Z';
+      const endDateTime = '2025-01-01T23:59:59Z';
+      const mainCategories = ['unknown'];
+
+      // Mock getSubCategoriesForSegment to return empty string
+      const getSubCategoriesForSegmentMock = jest.spyOn(require('../controllers/EventController'), 'getSubCategoriesForSegment').mockResolvedValue('');
+
+      const events = await fetchEventsByCategories(
+        userLatitude,
+        userLongitude,
+        radius,
+        startDateTime,
+        endDateTime,
+        mainCategories
+      );
+
+      expect(getSubCategoriesForSegmentMock).toHaveBeenCalledWith('unknown');
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: {
+          apikey: TICKETMASTER_API_KEY,
+          latlong: '55.6761,12.5683',
+          radius: 10,
+          startDateTime: '2025-01-01T00:00:00Z',
+          endDateTime: '2025-01-01T23:59:59Z',
+          classificationId: '',
+          sort: 'date,asc',
+        },
+      });
+
+      expect(events).toEqual(mockEvents);
+    });
+
+    it('should handle API errors gracefully', async () => {
+      axios.get.mockRejectedValue(new Error('API fetch error'));
+
+      const userLatitude = 55.6761;
+      const userLongitude = 12.5683;
+      const radius = 10;
+      const startDateTime = '2025-01-01T00:00:00Z';
+      const endDateTime = '2025-01-01T23:59:59Z';
+      const mainCategories = ['music'];
+
+      // Mock getSubCategoriesForSegment
+      const getSubCategoriesForSegmentMock = jest.spyOn(require('../controllers/EventController'), 'getSubCategoriesForSegment').mockResolvedValue('music,rock,pop');
+
+      await expect(
+        fetchEventsByCategories(userLatitude, userLongitude, radius, startDateTime, endDateTime, mainCategories)
+      ).rejects.toThrow('Error fetching events from Ticketmaster');
+
+      expect(getSubCategoriesForSegmentMock).toHaveBeenCalledWith('music');
+      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
+        params: {
+          apikey: TICKETMASTER_API_KEY,
+          latlong: '55.6761,12.5683',
+          radius: 10,
+          startDateTime: '2025-01-01T00:00:00Z',
+          endDateTime: '2025-01-01T23:59:59Z',
+          classificationId: 'music,rock,pop',
+          sort: 'date,asc',
+        },
       });
     });
   });
