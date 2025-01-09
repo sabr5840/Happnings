@@ -13,7 +13,9 @@ const {
   fetchEventsByCategories,
   getEvents,
   getEventsKeyword
-} = require('./EventController');  // Adjust the path as needed
+} = require('../../backend/controllers/EventController');
+
+
 
 // Mock the cache
 const myCache = new NodeCache();
