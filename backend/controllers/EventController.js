@@ -426,6 +426,7 @@ module.exports = {
   getSubCategories, 
   getEventsKeyword,
   fetchEventsByKeyword,
-  fetchClassifications
+  fetchClassifications,
+  getSubCategoriesForSegment
 };
 
