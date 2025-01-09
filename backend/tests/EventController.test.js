@@ -10,6 +10,7 @@ const {
   fetchEventsByKeyword,
   fetchUpcomingEvents,
   getCoordinatesFromAddress,
+  fetchEventsByCategory, 
 } = require('../controllers/EventController');
 
 // Mock axios and NodeCache
