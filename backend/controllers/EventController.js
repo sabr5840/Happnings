@@ -425,5 +425,7 @@ module.exports = {
   fetchEventsByCategory,
   getSubCategories, 
   getEventsKeyword,
-  fetchEventsByKeyword
+  fetchEventsByKeyword,
+  fetchClassifications
 };
+
