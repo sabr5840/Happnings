@@ -10,20 +10,23 @@ const {
   fetchEventsByKeyword,
   fetchUpcomingEvents,
   getCoordinatesFromAddress,
+  fetchClassifications,
+  getSubCategoriesForSegment,
+  fetchEventsByCategory
 } = require('../controllers/EventController');
 
-// Mock axios and NodeCache
+// Mock axios og NodeCache
 jest.mock('axios');
 jest.mock('node-cache');
 
 describe('EventController', () => {
   let originalEnv;
-  let cache;
+  let myCache;
 
   beforeAll(() => {
     originalEnv = { ...process.env };
     process.env.TICKETMASTER_API_KEY = 'testApiKey';
-    cache = new NodeCache();
+    myCache = new NodeCache();
   });
 
   afterAll(() => {
@@ -31,7 +34,7 @@ describe('EventController', () => {
   });
 
   beforeEach(() => {
-    cache.flushAll();
+    myCache.flushAll();
     jest.clearAllMocks();
   });
 
@@ -115,7 +118,6 @@ describe('EventController', () => {
     });
   });
 
-
   describe('fetchClassifications', () => {
     it('should fetch and cache classifications when cache is expired or empty', async () => {
       axios.get.mockResolvedValue({
@@ -125,7 +127,7 @@ describe('EventController', () => {
           }
         }
       });
-  
+
       const classifications = await fetchClassifications();
       expect(axios.get).toHaveBeenCalledWith(
         'https://app.ticketmaster.com/discovery/v2/classifications.json',
@@ -134,8 +136,9 @@ describe('EventController', () => {
       expect(classifications).toEqual([{ id: '1', name: 'Concert' }]);
       expect(myCache.set).toHaveBeenCalledWith('classifications', [{ id: '1', name: 'Concert' }], 86400);
     });
-  
+
     it('should return cached data if not expired', async () => {
+      myCache.set('classifications', [{ id: '1', name: 'Concert' }], 86400);
       myCache.get.mockReturnValue([{ id: '1', name: 'Concert' }]);
       const classifications = await fetchClassifications();
       expect(axios.get).not.toHaveBeenCalled();
@@ -149,16 +152,16 @@ describe('EventController', () => {
         { segment: { id: '1', name: 'Music' }, genre: { id: '10', name: 'Rock' } },
         { segment: { id: '2', name: 'Sports' } }
       ]);
-  
+
       const ids = await getSubCategoriesForSegment('Music');
       expect(ids).toEqual('1,10');
     });
-  
+
     it('should return an empty string if no matching segment is found', async () => {
       jest.spyOn(global, 'fetchClassifications').mockResolvedValue([
         { segment: { id: '2', name: 'Sports' } }
       ]);
-  
+
       const ids = await getSubCategoriesForSegment('Comedy');
       expect(ids).toBe('');
     });
@@ -171,9 +174,9 @@ describe('EventController', () => {
           _embedded: { events: [{ id: '1', name: 'Basketball Game' }] }
         }
       });
-  
+
       jest.spyOn(global, 'getSubCategoriesForSegment').mockResolvedValue('sports,football');
-  
+
       const events = await fetchEventsByCategory(55.6761, 12.5683, 10, '2020-01-01T00:00:00Z', '2020-01-02T00:00:00Z', 'sports');
       expect(axios.get).toHaveBeenCalledWith(
         'https://app.ticketmaster.com/discovery/v2/events.json',
@@ -187,12 +190,10 @@ describe('EventController', () => {
       );
       expect(events).toEqual([{ id: '1', name: 'Basketball Game' }]);
     });
-  
+
     it('should handle API errors appropriately', async () => {
       axios.get.mockRejectedValue(new Error('API failure'));
       await expect(fetchEventsByCategory(55.6761, 12.5683, 10, '2020-01-01T00:00:00Z', '2020-01-02T00:00:00Z', 'sports')).rejects.toThrow('API failure');
     });
   });
-  
-
 });
