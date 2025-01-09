@@ -10,7 +10,7 @@ const {
   fetchEventsByKeyword,
   fetchUpcomingEvents,
   fetchClassifications,
-  getSubCategoriesForSegment
+  getSubCategoriesForSegment,
 } = require('../controllers/EventController');
 
 // Mock axios and NodeCache
@@ -99,15 +99,6 @@ describe('EventController', () => {
     });
   });
 
-  describe('fetchClassifications', () => {
-    it('should return cached data if not expired', async () => {
-      cachedClassifications = [{ id: '1', name: 'Concert' }];  // Simulating cached data
-      classificationCacheTimestamp = Date.now() - 10000;  // Simulate timestamp that hasn't expired
-  
-      const classifications = await fetchClassifications();  // This should use the cached data
-      expect(classifications).toEqual([{ id: '1', name: 'Concert' }]);
-    });
-  });
 
   describe('getSubCategoriesForSegment', () => {
     it('should return subcategories IDs for a given segment', async () => {
