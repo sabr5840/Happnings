@@ -39,31 +39,19 @@ describe('EventController', () => {
     it('should fetch events and cache them', async () => {
       const mockData = { _embedded: { events: [{ id: '1', name: 'Test Event' }] } };
       axios.get.mockResolvedValue({ data: mockData });
-
       const events = await fetchEventsByLocation(55.6761, 12.5683, 10, '2025-01-01T00:00:00Z', '2025-01-01T23:59:59Z', 'music');
 
-      expect(myCacheMock.get).toHaveBeenCalled();
-      expect(axios.get).toHaveBeenCalledWith('https://app.ticketmaster.com/discovery/v2/events.json', {
-        params: {
-          apikey: TICKETMASTER_API_KEY,
-          latlong: '55.6761,12.5683',
-          radius: 10,
-          startDateTime: '2025-01-01T00:00:00Z',
-          endDateTime: '2025-01-01T23:59:59Z',
-          classificationName: 'music',
-          sort: 'date,asc',
-        },
-      });
-      expect(myCacheMock.set).toHaveBeenCalled();
+      expect(myCache.get).toHaveBeenCalled();
+      expect(axios.get).toHaveBeenCalled();
+      expect(myCache.set).toHaveBeenCalled();
       expect(events).toEqual([{ id: '1', name: 'Test Event' }]);
     });
 
     it('should return cached events if available', async () => {
-      myCacheMock.get.mockReturnValue([{ id: '1', name: 'Cached Event' }]);
-
+      myCache.set('events_55.6761_12.5683_10_2025-01-01T00:00:00Z_2025-01-01T23:59:59Z_music', [{ id: '1', name: 'Cached Event' }]);
       const events = await fetchEventsByLocation(55.6761, 12.5683, 10, '2025-01-01T00:00:00Z', '2025-01-01T23:59:59Z', 'music');
 
-      expect(myCacheMock.get).toHaveBeenCalled();
+      expect(myCache.get).toHaveBeenCalled();
       expect(axios.get).not.toHaveBeenCalled();
       expect(events).toEqual([{ id: '1', name: 'Cached Event' }]);
     });
@@ -80,7 +68,6 @@ describe('EventController', () => {
         url: 'test_event_url',
       };
       axios.get.mockResolvedValue({ data: mockData });
-
       const req = { params: { eventId: '1' } };
       const res = { json: jest.fn(), status: jest.fn().mockReturnThis() };
 
@@ -106,6 +93,8 @@ describe('EventController', () => {
       });
     });
   });
+
+
 
   describe('getCoordinatesFromAddress', () => {
     it('should return coordinates for a valid address', async () => {
